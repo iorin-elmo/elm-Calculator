@@ -38,6 +38,9 @@ update msg model =
 
     Pressed ->
       { model | strForCalc = model.inputString
+        |> String.toList
+        |> List.filter ((/=) ' ')
+        |> String.fromList
         |> expParser
       }
 

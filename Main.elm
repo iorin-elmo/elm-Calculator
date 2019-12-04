@@ -24,6 +24,7 @@ type Exp
     | Mul Exp Exp   --<Exp> * <Exp>
     | Pow Exp Exp   --<Exp> ^ <Exp>
     | Paren Exp     --(<Exp>)
+    | Max Exp Exp   --max(<Exp>,<Exp>)
 
 type Msg
     = Input String
@@ -53,28 +54,35 @@ evaluate exp =
     Mul left right -> evaluate left * evaluate right
     Pow left right -> evaluate left ^ evaluate right
     Paren expression -> evaluate expression
+    Max left right -> max (evaluate left) (evaluate right)
 
 expParser : Parser Exp
 expParser = expressionParser
 
-parenParser () =
-  concat parenOpenParser
-    ( concat expressionParser parenCloseParser
-      (\exp _ -> exp)
-    )
-    (\_ exp -> Paren exp)
+maxParser =
+  concat5
+    (string "max(") expressionParser commaParser expressionParser parenCloseParser
+    (\_ e1 _ e2 _ -> Max e1 e2)
 
-numOrParen =
-  unitOr parenParser numParser
+parenParser =
+  concat3
+    parenOpenParser expressionParser parenCloseParser
+    (\_ exp _ -> Paren exp)
+
+maxOrParen () =
+  or maxParser parenParser
+
+numOrMaxOrParen =
+  unitOr maxOrParen numParser
 
 hatNumParser =
-  concat hatParser numOrParen
+  concat hatParser numOrMaxOrParen
     (\hat exp ->(\left -> hat left exp) )
 hatNumListParser =
   zeroOrMore hatNumParser
 
 powParser =
-  concat numOrParen hatNumListParser
+  concat numOrMaxOrParen hatNumListParser
     (\left expList ->
       expList
         |> List.foldl (\exp result -> exp result) left
@@ -145,13 +153,15 @@ hatParser =
 
 parenOpenParser : Parser ()
 parenOpenParser =
-  char ((==) '(')
-    |> map (always ())
+  charMatch '('
 
 parenCloseParser : Parser ()
 parenCloseParser =
-  char ((==) ')')
-    |> map (always ())
+  charMatch ')'
+
+commaParser : Parser ()
+commaParser =
+  charMatch ','
 
 view : Model -> Html Msg
 view model =
@@ -187,15 +197,18 @@ expToString exp =
   case exp of
     Number n -> String.fromInt n
     Add left right ->
-      "(Add " ++ (expToString left) ++ " " ++ (expToString right) ++ ")"
+      "Add( " ++ (expToString left) ++ ", " ++ (expToString right) ++ " )"
     Sub left right ->
-      "(Sub " ++ (expToString left) ++ " " ++ (expToString right) ++ ")"
+      "Sub( " ++ (expToString left) ++ ", " ++ (expToString right) ++ " )"
     Mul left right ->
-      "(Mul " ++ (expToString left) ++ " " ++ (expToString right) ++ ")"
+      "Mul( " ++ (expToString left) ++ ", " ++ (expToString right) ++ " )"
     Pow left right ->
-      "(Pow " ++ (expToString left) ++ " " ++ (expToString right) ++ ")"
+      "Pow( " ++ (expToString left) ++ ", " ++ (expToString right) ++ " )"
     Paren expression ->
       "( " ++ expToString expression ++ " )"
+    Max left right ->
+      "Max( " ++ expToString left ++ "," ++ expToString right ++ " )"
+
 
 main : Program () Model Msg
 main =

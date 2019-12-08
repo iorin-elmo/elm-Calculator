@@ -19,6 +19,10 @@ module IorinParser exposing
   , char
   , charMatch
   , string
+  , intersperceConcat
+  , intersperceConcat3
+  , intersperceConcat4
+  , intersperceConcat5
   )
 
 type alias Parser a = String -> Res a
@@ -46,6 +50,22 @@ concat5 : Parser a -> Parser b -> Parser c -> Parser d -> Parser e -> (a -> b ->
 concat5 pa pb pc pd pe f =
   pa
     |> fmap (\a -> concat4 pb pc pd pe (f a))
+
+concat6 pa pb pc pd pe pf f =
+  pa
+    |> fmap (\a -> concat5 pb pc pd pe pf (f a))
+
+concat7 pa pb pc pd pe pf pg f =
+  pa
+    |> fmap (\a -> concat6 pb pc pd pe pf pg (f a))
+
+concat8 pa pb pc pd pe pf pg ph f =
+  pa
+    |> fmap (\a -> concat7 pb pc pd pe pf pg ph (f a))
+
+concat9 pa pb pc pd pe pf pg ph pi f =
+  pa
+    |> fmap (\a -> concat8 pb pc pd pe pf pg ph pi (f a))
 
 
 or : Parser a -> Parser a -> Parser a
@@ -160,3 +180,24 @@ forParser n p =
       concat
         p (forParser (n-1) p)
         (\a list -> a :: list)
+
+intersperceConcat : Parser i -> Parser a -> Parser b -> (a -> b -> c) -> Parser c
+intersperceConcat i p1 p2 f =
+  concat3
+    p1 i p2
+    (\a _ b -> f a b)
+
+intersperceConcat3 i p1 p2 p3 f =
+  concat5
+    p1 i p2 i p3
+    (\a _ b _ c -> f a b c)
+
+intersperceConcat4 i p1 p2 p3 p4 f =
+  concat7
+    p1 i p2 i p3 i p4
+    (\a _ b _ c _ d -> f a b c d)
+
+intersperceConcat5 i p1 p2 p3 p4 p5 f =
+  concat9
+    p1 i p2 i p3 i p4 i p5
+    (\a _ b _ c _ d _ e -> f a b c d e)

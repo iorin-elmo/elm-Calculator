@@ -25,6 +25,8 @@ module IorinParser exposing
   , intersperceConcat5
   )
 
+import Debug exposing(log)
+
 type alias Parser a = String -> Res a
 
 type Res a
@@ -143,7 +145,7 @@ return : a -> Parser a
 return a = (\str -> Success a str)
 
 fail : Parser a
-fail = (\str -> Failed)
+fail = (\str -> Failed |> log str)
 
 char : (Char -> Bool) -> Parser Char
 char f =

@@ -7,6 +7,8 @@ import Html.Events exposing (onClick, onInput)
 import Dict exposing (Dict)
 import IorinParser exposing (..)
 
+import Debug exposing (log)
+
 type alias Model =
     { inputString : String
     , strForCalc : Res Exp
@@ -49,6 +51,8 @@ update msg model =
         |> expParser
       }
 
+
+
 evaluate : Dict Variable Int -> Exp -> Int
 evaluate dict exp =
   case exp of
@@ -66,7 +70,7 @@ evaluate dict exp =
       in
         case maybeInt of
           Just e -> e
-          Nothing -> 0 
+          Nothing -> 0
 
 expParser : Parser Exp
 expParser = expressionParser
@@ -77,7 +81,7 @@ zeroOrMoreSpaceParser =
 
 oneOrMoreSpaceParser =
   concat
-    (charMatch '\u{0020}') zeroOrMoreSpaceParser
+    (charMatch ' ') zeroOrMoreSpaceParser
     (\_ _ -> ())
 
 varDecl =
@@ -85,18 +89,9 @@ varDecl =
     variableParser (charMatch '=') expressionParser
     (\var _ exp -> ( var, exp ))
 
-varDecl_ =
-  varDecl
-    |> map (\ ( var, e1 ) -> Let var e1 (Mul (Var "x") (Number 2)))
-
-varDecl__ =
-  intersperceConcat (charMatch ' ')
-  varDecl expressionParser
-  (\ ( var, e1 ) e2 -> Let var e1 e2)
-
 letParser =
   intersperceConcat4 oneOrMoreSpaceParser
-    (string "let") varDecl (string "in") expressionParser 
+    (string "let") varDecl (string "in") expressionParser
     (\_ ( var, e1 ) _ e2 -> Let var e1 e2)
 
 variableParser : Parser String
@@ -115,8 +110,7 @@ variableParser =
           _     -> return str
       )
 
-
-maxParser : Parser Exp 
+maxParser : Parser Exp
 maxParser =
   intersperceConcat5 zeroOrMoreSpaceParser
     (string "max(") expressionParser commaParser expressionParser parenCloseParser
@@ -138,11 +132,17 @@ hatNumParser =
   intersperceConcat zeroOrMoreSpaceParser
     hatParser numOrLoopables
     (\hat exp ->(\left -> hat left exp) )
+
 hatNumListParser =
-  zeroOrMore hatNumParser
+  zeroOrMore
+    ( concat
+      zeroOrMoreSpaceParser
+      hatNumParser
+      (\_ exp->exp)
+    )
 
 powParser =
-  intersperceConcat zeroOrMoreSpaceParser
+  concat
     numOrLoopables hatNumListParser
     (\left expList ->
       expList
@@ -153,11 +153,17 @@ starNumParser =
   intersperceConcat zeroOrMoreSpaceParser
     starParser powParser
     (\star exp ->(\left -> star left exp) )
+
 starNumListParser =
-  zeroOrMore starNumParser
+  zeroOrMore
+    ( concat
+      zeroOrMoreSpaceParser
+      starNumParser
+      (\_ exp->exp)
+    )
 
 mulParser =
-  intersperceConcat zeroOrMoreSpaceParser
+  concat
     powParser starNumListParser
     (\left expList ->
       expList
@@ -170,11 +176,17 @@ addNumParser =
   intersperceConcat zeroOrMoreSpaceParser
     plusMinusParser mulParser
     (\addOrSub exp ->(\left -> addOrSub left exp) )
+
 addNumListParser =
-  zeroOrMore addNumParser
+  zeroOrMore
+    ( concat
+      zeroOrMoreSpaceParser
+      addNumParser
+      (\_ exp->exp)
+    )
 
 expressionParser =
-  intersperceConcat zeroOrMoreSpaceParser
+  concat
     mulParser addNumListParser
   (\left expList ->
     expList

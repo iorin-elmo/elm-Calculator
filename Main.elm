@@ -12,14 +12,12 @@ import Debug exposing (log)
 type alias Model =
     { inputString : String
     , strForCalc : Res Exp
-    , variableList : Dict Variable Int
     }
 
 initialModel : Model
 initialModel =
     { inputString = ""
     , strForCalc = Failed
-    , variableList = Dict.empty
     }
 
 type Exp
@@ -29,9 +27,13 @@ type Exp
     | Mul Exp Exp   --<Exp> * <Exp>
     | Pow Exp Exp   --<Exp> ^ <Exp>
     | Paren Exp     --(<Exp>)
-    | Max Exp Exp   --max(<Exp>,<Exp>)
     | Let Variable Exp Exp-- let x=2 in x*4
     | Var Variable
+    | If Exp Exp Exp
+    | GreaterThan Exp Exp
+    | LessThan Exp Exp
+    | Equal Exp Exp
+
 
 type alias Variable = String
 
@@ -62,7 +64,6 @@ evaluate dict exp =
     Mul left right -> evaluate dict left * evaluate dict right
     Pow left right -> evaluate dict left ^ evaluate dict right
     Paren expression -> evaluate dict expression
-    Max left right -> max (evaluate dict left) (evaluate dict right)
     Let var e1 e2 -> evaluate (Dict.insert var (evaluate dict e1) dict) e2
     Var variable ->
       let
@@ -71,6 +72,22 @@ evaluate dict exp =
         case maybeInt of
           Just e -> e
           Nothing -> 0
+    If cond t f ->
+      if evaluate dict cond /= 0
+      then evaluate dict t
+      else evaluate dict f
+    GreaterThan left right ->
+      if evaluate dict left > evaluate dict right
+      then 1
+      else 0
+    LessThan left right ->
+      if evaluate dict left < evaluate dict right
+      then 1
+      else 0
+    Equal left right ->
+      if evaluate dict left == evaluate dict right
+      then 1
+      else 0
 
 expParser : Parser Exp
 expParser = expressionParser
@@ -83,6 +100,31 @@ oneOrMoreSpaceParser =
   concat
     (charMatch ' ') zeroOrMoreSpaceParser
     (\_ _ -> ())
+
+ifParser =
+  intersperceConcat oneOrMoreSpaceParser
+    (
+      intersperceConcat3 oneOrMoreSpaceParser
+        (string "if") conditionParser (string "then")
+        (\_ cond _ -> cond)
+    )
+    (
+      intersperceConcat3 oneOrMoreSpaceParser
+        expressionParser (string "else") expressionParser
+        (\t _ f -> ( t, f ))
+    )
+    (\cond ( t, f ) -> If cond t f)
+
+conditionParser : Parser Exp
+conditionParser =
+  intersperceConcat3 zeroOrMoreSpaceParser
+    expressionParser comparatorParser expressionParser
+    (\left compare right -> compare left right)
+
+comparatorParser : Parser (Exp -> Exp -> Exp)
+comparatorParser =
+  choice [gtParser,ltParser,eqParser]
+
 
 varDecl =
   intersperceConcat3 zeroOrMoreSpaceParser
@@ -110,12 +152,6 @@ variableParser =
           _     -> return str
       )
 
-maxParser : Parser Exp
-maxParser =
-  intersperceConcat5 zeroOrMoreSpaceParser
-    (string "max(") expressionParser commaParser expressionParser parenCloseParser
-    (\_ e1 _ e2 _ -> Max e1 e2)
-
 parenParser : Parser Exp
 parenParser =
   intersperceConcat3 zeroOrMoreSpaceParser
@@ -123,7 +159,7 @@ parenParser =
     (\_ exp _ -> Paren exp)
 
 loopables () =
-  choice [maxParser,parenParser,letParser]
+  choice [parenParser,letParser,ifParser]
 
 numOrLoopables =
   unitChoice loopables [numParser,(variableParser |> map Var)]
@@ -210,22 +246,22 @@ digitParser =
 
 plusParser : Parser (Exp -> Exp -> Exp)
 plusParser =
-  char ((==) '+')
+  charMatch '+'
     |> map (always Add)
 
 minusParser : Parser (Exp -> Exp -> Exp)
 minusParser =
-  char ((==) '-')
+  charMatch '-'
     |> map (always Sub)
 
 starParser : Parser (Exp -> Exp -> Exp)
 starParser =
-  char ((==) '*')
+  charMatch '*'
     |> map (always Mul)
 
 hatParser : Parser (Exp -> Exp -> Exp)
 hatParser =
-  char ((==) '^')
+  charMatch '^'
     |> map (always Pow)
 
 parenOpenParser : Parser ()
@@ -239,6 +275,22 @@ parenCloseParser =
 commaParser : Parser ()
 commaParser =
   charMatch ','
+
+gtParser : Parser (Exp -> Exp -> Exp)
+gtParser =
+  charMatch '>'
+    |> map (always GreaterThan)
+
+ltParser : Parser (Exp -> Exp -> Exp)
+ltParser =
+  charMatch '<'
+    |> map (always LessThan)
+
+eqParser : Parser (Exp -> Exp -> Exp)
+eqParser =
+  charMatch '='
+    |> map (always Equal)
+
 
 view : Model -> Html Msg
 view model =
@@ -259,7 +311,7 @@ resultToEvaluatedString model =
   case model.strForCalc of
     Success exp tl ->
       exp
-        |> evaluate model.variableList
+        |> evaluate Dict.empty
         |> String.fromInt
     _ -> "Error"
 
@@ -283,11 +335,19 @@ expToString exp =
       "Pow( " ++ (expToString left) ++ ", " ++ (expToString right) ++ " )"
     Paren expression ->
       "( " ++ expToString expression ++ " )"
-    Max left right ->
-      "Max( " ++ expToString left ++ "," ++ expToString right ++ " )"
     Let var e1 e2 ->
       "Let( " ++ var ++ " = " ++ expToString e1 ++ " In " ++ expToString e2 ++ " )"
-    Var var -> "Var("++var++")"
+    Var var ->
+      "Var("++var++")"
+    If cond t f ->
+      "If "++expToString cond++" Then "++expToString t++" Else "++expToString f
+    GreaterThan left right ->
+      expToString left++" > "++expToString right
+    LessThan left right ->
+      expToString left++" < "++expToString right
+    Equal left right ->
+      expToString left++" = "++expToString right
+
 
 
 main : Program () Model Msg

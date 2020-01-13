@@ -10,36 +10,40 @@ import IorinParser exposing (..)
 import Debug exposing (log)
 
 type alias Model =
-    { inputString : String
-    , strForCalc : Res Exp
-    }
+  { inputString : String
+  , strForCalc : Res LambdaExp
+  }
 
 initialModel : Model
 initialModel =
-    { inputString = ""
-    , strForCalc = Failed
-    }
+  { inputString = ""
+  , strForCalc = Failed
+  }
 
 type Exp
-    = Number Int
-    | Add Exp Exp   --<Exp> + <Exp>
-    | Sub Exp Exp   --<Exp> - <Exp>
-    | Mul Exp Exp   --<Exp> * <Exp>
-    | Pow Exp Exp   --<Exp> ^ <Exp>
-    | Paren Exp     --(<Exp>)
-    | Let Variable Exp Exp-- let x=2 in x*4
-    | Var Variable
-    | If Exp Exp Exp
-    | GreaterThan Exp Exp
-    | LessThan Exp Exp
-    | Equal Exp Exp
+  = Number Int
+  | Add Exp Exp   --<Exp> + <Exp>
+  | Sub Exp Exp   --<Exp> - <Exp>
+  | Mul Exp Exp   --<Exp> * <Exp>
+  | Pow Exp Exp   --<Exp> ^ <Exp>
+  | Paren Exp     --(<Exp>)
+  | Let Variable Exp Exp -- let x=2 in x*4
+  | Var Variable
+  | If Exp Exp Exp -- if condition then t else f
+  | GreaterThan Exp Exp -- exp > exp (1 or 0)
+  | LessThan Exp Exp -- exp < exp (1 or 0)
+  | Equal Exp Exp -- exp = exp (1 or 0)
 
+type LambdaExp
+  = LambdaVar Int
+  | LambdaAbs Variable LambdaExp
+  | LambdaApp LambdaExp LambdaExp
 
 type alias Variable = String
 
 type Msg
-    = Input String
-    | Pressed
+  = Input String
+  | Pressed
 
 
 update : Msg -> Model -> Model
@@ -50,7 +54,8 @@ update msg model =
 
     Pressed ->
       { model | strForCalc = model.inputString
-        |> expParser
+        |> lambdaParser []
+        --|> expParser
       }
 
 
@@ -88,6 +93,85 @@ evaluate dict exp =
       if evaluate dict left == evaluate dict right
       then 1
       else 0
+      
+
+lambdaParser : List Variable -> Parser LambdaExp
+lambdaParser list =
+  unitOr
+    (\() -> lambdaAbsParser (list |> log "abs" ))
+    ( unitOr
+      (\() -> lambdaAppParser (list |> log "app") )
+      (lambdaVarParser (list |>log "var" ) )
+    )
+
+
+lambdaAbsParser : List Variable -> Parser LambdaExp
+lambdaAbsParser list =
+  concat
+    (
+      intersperceConcat3 zeroOrMoreSpaceParser
+        bsParser variableParser (string "->")
+        (\_ var _ -> var :: list )
+    )
+    zeroOrMoreSpaceParser
+    (\varList _ -> varList)
+  |> fmap (\varList -> lambdaParser varList)
+
+
+lambdaAppParser : List Variable -> Parser LambdaExp
+lambdaAppParser list =
+  intersperceConcat oneOrMoreSpaceParser
+    (lambdaParser list) (lambdaParser list)
+    (\left right -> LambdaApp left right )
+
+lambdaVarParser : List Variable -> Parser LambdaExp
+lambdaVarParser list =
+  variableParser
+    |> map (\var -> varSearch var list 0)
+    |> fmap
+      (\maybeInt ->
+        case maybeInt of
+          Just n -> return (LambdaVar n)
+          _ -> fail
+      ) 
+
+varSearch : Variable -> List Variable -> Int -> Maybe Int
+varSearch var list cnt =
+  case list of
+    [] -> Nothing
+    hd :: tl ->
+      if hd == var
+      then cnt |> Just
+      else varSearch var tl (cnt+1)
+
+lambdaExpToString : Res LambdaExp -> List Variable -> String
+lambdaExpToString res list =
+  case res of
+    Success lambdaExp tl ->
+      case lambdaExp of
+        LambdaVar n ->
+          getName n list
+        LambdaAbs var exp ->
+          "\\ "++var++" ->"++(lambdaExpToString (Success exp "") (var::list) )
+        LambdaApp left right ->
+          (lambdaExpToString (Success left "") list)++" "++(lambdaExpToString (Success right "") list)
+    Failed -> "Error"
+
+getName : Int -> List Variable -> String
+getName n list =
+  let
+    getNameHelper =
+      case n of
+        0 -> List.head list
+        _ ->
+          case list of
+            [] -> Nothing
+            hd :: tl ->
+              getName (n-1) tl |> Just
+  in
+    case getNameHelper of
+      Just str -> str
+      _ -> "Error"
 
 expParser : Parser Exp
 expParser = expressionParser
@@ -291,6 +375,9 @@ eqParser =
   charMatch '='
     |> map (always Equal)
 
+bsParser =
+  charMatch '\\'
+
 
 view : Model -> Html Msg
 view model =
@@ -301,11 +388,13 @@ view model =
       ][]
     , button [ onClick Pressed ][ text "Parse it !" ]
     , br[][]
-    , text <| resultToString model.strForCalc
+    --, text <| resultToString model.strForCalc
+    , text <| lambdaExpToString model.strForCalc []
     , br[][]
-    , text <| resultToEvaluatedString model
+    --, text <| resultToEvaluatedString model
     ]
 
+{-
 resultToEvaluatedString : Model -> String
 resultToEvaluatedString model =
   case model.strForCalc of
@@ -348,7 +437,7 @@ expToString exp =
     Equal left right ->
       expToString left++" = "++expToString right
 
-
+-}
 
 main : Program () Model Msg
 main =

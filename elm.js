@@ -4939,9 +4939,7 @@ function _Browser_load(url)
 	}));
 }
 var $author$project$Main$Failed = {$: 'Failed'};
-var $elm$core$Dict$RBEmpty_elm_builtin = {$: 'RBEmpty_elm_builtin'};
-var $elm$core$Dict$empty = $elm$core$Dict$RBEmpty_elm_builtin;
-var $author$project$Main$initialModel = {inputString: '', strForCalc: $author$project$Main$Failed, variableList: $elm$core$Dict$empty};
+var $author$project$Main$initialModel = {inputString: '', strForCalc: $author$project$Main$Failed};
 var $elm$core$Basics$EQ = {$: 'EQ'};
 var $elm$core$Basics$GT = {$: 'GT'};
 var $elm$core$Basics$LT = {$: 'LT'};
@@ -6202,6 +6200,8 @@ var $elm$browser$Debugger$Main$cornerView = function (model) {
 		$elm$browser$Debugger$History$size(model.history),
 		model.overlay);
 };
+var $elm$core$Dict$RBEmpty_elm_builtin = {$: 'RBEmpty_elm_builtin'};
+var $elm$core$Dict$empty = $elm$core$Dict$RBEmpty_elm_builtin;
 var $elm$core$Set$foldr = F3(
 	function (func, initialState, _v0) {
 		var dict = _v0.a;
@@ -10557,13 +10557,13 @@ var $elm$browser$Browser$sandbox = function (impl) {
 			view: impl.view
 		});
 };
+var $author$project$Main$If = F3(
+	function (a, b, c) {
+		return {$: 'If', a: a, b: b, c: c};
+	});
 var $author$project$Main$Let = F3(
 	function (a, b, c) {
 		return {$: 'Let', a: a, b: b, c: c};
-	});
-var $author$project$Main$Max = F2(
-	function (a, b) {
-		return {$: 'Max', a: a, b: b};
 	});
 var $author$project$Main$Paren = function (a) {
 	return {$: 'Paren', a: a};
@@ -10650,8 +10650,36 @@ var $author$project$Main$or = F2(
 var $author$project$Main$choice = function (list) {
 	return A3($elm$core$List$foldl, $author$project$Main$or, $author$project$Main$fail, list);
 };
-var $author$project$Main$commaParser = $author$project$Main$charMatch(
-	_Utils_chr(','));
+var $author$project$Main$Equal = F2(
+	function (a, b) {
+		return {$: 'Equal', a: a, b: b};
+	});
+var $author$project$Main$eqParser = A2(
+	$author$project$Main$map,
+	$elm$core$Basics$always($author$project$Main$Equal),
+	$author$project$Main$charMatch(
+		_Utils_chr('=')));
+var $author$project$Main$GreaterThan = F2(
+	function (a, b) {
+		return {$: 'GreaterThan', a: a, b: b};
+	});
+var $author$project$Main$gtParser = A2(
+	$author$project$Main$map,
+	$elm$core$Basics$always($author$project$Main$GreaterThan),
+	$author$project$Main$charMatch(
+		_Utils_chr('>')));
+var $author$project$Main$LessThan = F2(
+	function (a, b) {
+		return {$: 'LessThan', a: a, b: b};
+	});
+var $author$project$Main$ltParser = A2(
+	$author$project$Main$map,
+	$elm$core$Basics$always($author$project$Main$LessThan),
+	$author$project$Main$charMatch(
+		_Utils_chr('<')));
+var $author$project$Main$comparatorParser = $author$project$Main$choice(
+	_List_fromArray(
+		[$author$project$Main$gtParser, $author$project$Main$ltParser, $author$project$Main$eqParser]));
 var $author$project$Main$concat = F3(
 	function (pa, pb, f) {
 		return A2(
@@ -10671,9 +10699,8 @@ var $author$project$Main$Pow = F2(
 var $author$project$Main$hatParser = A2(
 	$author$project$Main$map,
 	$elm$core$Basics$always($author$project$Main$Pow),
-	$author$project$Main$char(
-		$elm$core$Basics$eq(
-			_Utils_chr('^'))));
+	$author$project$Main$charMatch(
+		_Utils_chr('^')));
 var $author$project$Main$concat3 = F4(
 	function (pa, pb, pc, f) {
 		return A2(
@@ -10791,68 +10818,6 @@ var $author$project$Main$intersperceConcat4 = F6(
 					return A4(f, a, b, c, d);
 				}));
 	});
-var $author$project$Main$concat8 = F9(
-	function (pa, pb, pc, pd, pe, pf, pg, ph, f) {
-		return A2(
-			$author$project$Main$fmap,
-			function (a) {
-				return A8(
-					$author$project$Main$concat7,
-					pb,
-					pc,
-					pd,
-					pe,
-					pf,
-					pg,
-					ph,
-					f(a));
-			},
-			pa);
-	});
-var $author$project$Main$concat9 = function (pa) {
-	return function (pb) {
-		return function (pc) {
-			return function (pd) {
-				return function (pe) {
-					return function (pf) {
-						return function (pg) {
-							return function (ph) {
-								return function (pi) {
-									return function (f) {
-										return A2(
-											$author$project$Main$fmap,
-											function (a) {
-												return A9(
-													$author$project$Main$concat8,
-													pb,
-													pc,
-													pd,
-													pe,
-													pf,
-													pg,
-													ph,
-													pi,
-													f(a));
-											},
-											pa);
-									};
-								};
-							};
-						};
-					};
-				};
-			};
-		};
-	};
-};
-var $author$project$Main$intersperceConcat5 = F7(
-	function (i, p1, p2, p3, p4, p5, f) {
-		return $author$project$Main$concat9(p1)(i)(p2)(i)(p3)(i)(p4)(i)(p5)(
-			F9(
-				function (a, _v0, b, _v1, c, _v2, d, _v3, e) {
-					return A5(f, a, b, c, d, e);
-				}));
-	});
 var $author$project$Main$Number = function (a) {
 	return {$: 'Number', a: a};
 };
@@ -10955,9 +10920,8 @@ var $author$project$Main$Sub = F2(
 var $author$project$Main$minusParser = A2(
 	$author$project$Main$map,
 	$elm$core$Basics$always($author$project$Main$Sub),
-	$author$project$Main$char(
-		$elm$core$Basics$eq(
-			_Utils_chr('-'))));
+	$author$project$Main$charMatch(
+		_Utils_chr('-')));
 var $author$project$Main$Add = F2(
 	function (a, b) {
 		return {$: 'Add', a: a, b: b};
@@ -10965,9 +10929,8 @@ var $author$project$Main$Add = F2(
 var $author$project$Main$plusParser = A2(
 	$author$project$Main$map,
 	$elm$core$Basics$always($author$project$Main$Add),
-	$author$project$Main$char(
-		$elm$core$Basics$eq(
-			_Utils_chr('+'))));
+	$author$project$Main$charMatch(
+		_Utils_chr('+')));
 var $author$project$Main$plusMinusParser = A2($author$project$Main$or, $author$project$Main$plusParser, $author$project$Main$minusParser);
 var $author$project$Main$Mul = F2(
 	function (a, b) {
@@ -10976,9 +10939,8 @@ var $author$project$Main$Mul = F2(
 var $author$project$Main$starParser = A2(
 	$author$project$Main$map,
 	$elm$core$Basics$always($author$project$Main$Mul),
-	$author$project$Main$char(
-		$elm$core$Basics$eq(
-			_Utils_chr('*'))));
+	$author$project$Main$charMatch(
+		_Utils_chr('*')));
 var $author$project$Main$forParser = F2(
 	function (n, p) {
 		if (!n) {
@@ -11045,6 +11007,12 @@ var $author$project$Main$variableParser = A2(
 				return $author$project$Main$fail;
 			case 'in':
 				return $author$project$Main$fail;
+			case 'if':
+				return $author$project$Main$fail;
+			case 'then':
+				return $author$project$Main$fail;
+			case 'else':
+				return $author$project$Main$fail;
 			default:
 				return $author$project$Main$return(str);
 		}
@@ -11068,9 +11036,9 @@ var $author$project$Main$loopables = function (_v0) {
 	return $author$project$Main$choice(
 		_List_fromArray(
 			[
-				$author$project$Main$cyclic$maxParser(),
 				$author$project$Main$cyclic$parenParser(),
-				$author$project$Main$cyclic$letParser()
+				$author$project$Main$cyclic$letParser(),
+				$author$project$Main$cyclic$ifParser()
 			]));
 };
 function $author$project$Main$cyclic$letParser() {
@@ -11082,9 +11050,9 @@ function $author$project$Main$cyclic$letParser() {
 		$author$project$Main$string('in'),
 		$author$project$Main$cyclic$expressionParser(),
 		F4(
-			function (_v10, _v11, _v12, e2) {
-				var _var = _v11.a;
-				var e1 = _v11.b;
+			function (_v11, _v12, _v13, e2) {
+				var _var = _v12.a;
+				var e1 = _v12.b;
 				return A3($author$project$Main$Let, _var, e1, e2);
 			}));
 }
@@ -11097,7 +11065,7 @@ function $author$project$Main$cyclic$varDecl() {
 			_Utils_chr('=')),
 		$author$project$Main$cyclic$expressionParser(),
 		F3(
-			function (_var, _v9, exp) {
+			function (_var, _v10, exp) {
 				return _Utils_Tuple2(_var, exp);
 			}));
 }
@@ -11109,22 +11077,51 @@ function $author$project$Main$cyclic$parenParser() {
 		$author$project$Main$cyclic$expressionParser(),
 		$author$project$Main$parenCloseParser,
 		F3(
-			function (_v7, exp, _v8) {
+			function (_v8, exp, _v9) {
 				return $author$project$Main$Paren(exp);
 			}));
 }
-function $author$project$Main$cyclic$maxParser() {
-	return A7(
-		$author$project$Main$intersperceConcat5,
+function $author$project$Main$cyclic$ifParser() {
+	return A4(
+		$author$project$Main$intersperceConcat,
+		$author$project$Main$oneOrMoreSpaceParser,
+		A5(
+			$author$project$Main$intersperceConcat3,
+			$author$project$Main$oneOrMoreSpaceParser,
+			$author$project$Main$string('if'),
+			$author$project$Main$cyclic$conditionParser(),
+			$author$project$Main$string('then'),
+			F3(
+				function (_v4, cond, _v5) {
+					return cond;
+				})),
+		A5(
+			$author$project$Main$intersperceConcat3,
+			$author$project$Main$oneOrMoreSpaceParser,
+			$author$project$Main$cyclic$expressionParser(),
+			$author$project$Main$string('else'),
+			$author$project$Main$cyclic$expressionParser(),
+			F3(
+				function (t, _v6, f) {
+					return _Utils_Tuple2(t, f);
+				})),
+		F2(
+			function (cond, _v7) {
+				var t = _v7.a;
+				var f = _v7.b;
+				return A3($author$project$Main$If, cond, t, f);
+			}));
+}
+function $author$project$Main$cyclic$conditionParser() {
+	return A5(
+		$author$project$Main$intersperceConcat3,
 		$author$project$Main$zeroOrMoreSpaceParser,
-		$author$project$Main$string('max('),
 		$author$project$Main$cyclic$expressionParser(),
-		$author$project$Main$commaParser,
+		$author$project$Main$comparatorParser,
 		$author$project$Main$cyclic$expressionParser(),
-		$author$project$Main$parenCloseParser,
-		F5(
-			function (_v4, e1, _v5, e2, _v6) {
-				return A2($author$project$Main$Max, e1, e2);
+		F3(
+			function (left, compare, right) {
+				return A2(compare, left, right);
 			}));
 }
 function $author$project$Main$cyclic$expressionParser() {
@@ -11273,9 +11270,13 @@ try {
 	$author$project$Main$cyclic$parenParser = function () {
 		return $author$project$Main$parenParser;
 	};
-	var $author$project$Main$maxParser = $author$project$Main$cyclic$maxParser();
-	$author$project$Main$cyclic$maxParser = function () {
-		return $author$project$Main$maxParser;
+	var $author$project$Main$ifParser = $author$project$Main$cyclic$ifParser();
+	$author$project$Main$cyclic$ifParser = function () {
+		return $author$project$Main$ifParser;
+	};
+	var $author$project$Main$conditionParser = $author$project$Main$cyclic$conditionParser();
+	$author$project$Main$cyclic$conditionParser = function () {
+		return $author$project$Main$conditionParser;
 	};
 	var $author$project$Main$expressionParser = $author$project$Main$cyclic$expressionParser();
 	$author$project$Main$cyclic$expressionParser = function () {
@@ -11318,7 +11319,7 @@ try {
 		return $author$project$Main$numOrLoopables;
 	};
 } catch ($) {
-	throw 'Some top-level definitions from `Main` are causing infinite recursion:\n\n  ┌─────┐\n  │    letParser\n  │     ↓\n  │    varDecl\n  │     ↓\n  │    parenParser\n  │     ↓\n  │    maxParser\n  │     ↓\n  │    expressionParser\n  │     ↓\n  │    addNumListParser\n  │     ↓\n  │    addNumParser\n  │     ↓\n  │    mulParser\n  │     ↓\n  │    starNumListParser\n  │     ↓\n  │    starNumParser\n  │     ↓\n  │    powParser\n  │     ↓\n  │    hatNumListParser\n  │     ↓\n  │    hatNumParser\n  │     ↓\n  │    numOrLoopables\n  │     ↓\n  │    loopables\n  └─────┘\n\nThese errors are very tricky, so read https://elm-lang.org/0.19.1/bad-recursion to learn how to fix it!';}
+	throw 'Some top-level definitions from `Main` are causing infinite recursion:\n\n  ┌─────┐\n  │    letParser\n  │     ↓\n  │    varDecl\n  │     ↓\n  │    parenParser\n  │     ↓\n  │    ifParser\n  │     ↓\n  │    conditionParser\n  │     ↓\n  │    expressionParser\n  │     ↓\n  │    addNumListParser\n  │     ↓\n  │    addNumParser\n  │     ↓\n  │    mulParser\n  │     ↓\n  │    starNumListParser\n  │     ↓\n  │    starNumParser\n  │     ↓\n  │    powParser\n  │     ↓\n  │    hatNumListParser\n  │     ↓\n  │    hatNumParser\n  │     ↓\n  │    numOrLoopables\n  │     ↓\n  │    loopables\n  └─────┘\n\nThese errors are very tricky, so read https://elm-lang.org/0.19.1/bad-recursion to learn how to fix it!';}
 var $author$project$Main$expParser = $author$project$Main$expressionParser;
 var $author$project$Main$update = F2(
 	function (msg, model) {
@@ -11375,13 +11376,6 @@ var $author$project$Main$evaluate = F2(
 					dict = $temp$dict;
 					exp = $temp$exp;
 					continue evaluate;
-				case 'Max':
-					var left = exp.a;
-					var right = exp.b;
-					return A2(
-						$elm$core$Basics$max,
-						A2($author$project$Main$evaluate, dict, left),
-						A2($author$project$Main$evaluate, dict, right));
 				case 'Let':
 					var _var = exp.a;
 					var e1 = exp.b;
@@ -11395,7 +11389,7 @@ var $author$project$Main$evaluate = F2(
 					dict = $temp$dict;
 					exp = $temp$exp;
 					continue evaluate;
-				default:
+				case 'Var':
 					var variable = exp.a;
 					var maybeInt = A2($elm$core$Dict$get, variable, dict);
 					if (maybeInt.$ === 'Just') {
@@ -11404,6 +11398,41 @@ var $author$project$Main$evaluate = F2(
 					} else {
 						return 0;
 					}
+				case 'If':
+					var cond = exp.a;
+					var t = exp.b;
+					var f = exp.c;
+					if (!(!A2($author$project$Main$evaluate, dict, cond))) {
+						var $temp$dict = dict,
+							$temp$exp = t;
+						dict = $temp$dict;
+						exp = $temp$exp;
+						continue evaluate;
+					} else {
+						var $temp$dict = dict,
+							$temp$exp = f;
+						dict = $temp$dict;
+						exp = $temp$exp;
+						continue evaluate;
+					}
+				case 'GreaterThan':
+					var left = exp.a;
+					var right = exp.b;
+					return (_Utils_cmp(
+						A2($author$project$Main$evaluate, dict, left),
+						A2($author$project$Main$evaluate, dict, right)) > 0) ? 1 : 0;
+				case 'LessThan':
+					var left = exp.a;
+					var right = exp.b;
+					return (_Utils_cmp(
+						A2($author$project$Main$evaluate, dict, left),
+						A2($author$project$Main$evaluate, dict, right)) < 0) ? 1 : 0;
+				default:
+					var left = exp.a;
+					var right = exp.b;
+					return _Utils_eq(
+						A2($author$project$Main$evaluate, dict, left),
+						A2($author$project$Main$evaluate, dict, right)) ? 1 : 0;
 			}
 		}
 	});
@@ -11413,7 +11442,7 @@ var $author$project$Main$resultToEvaluatedString = function (model) {
 		var exp = _v0.a;
 		var tl = _v0.b;
 		return $elm$core$String$fromInt(
-			A2($author$project$Main$evaluate, model.variableList, exp));
+			A2($author$project$Main$evaluate, $elm$core$Dict$empty, exp));
 	} else {
 		return 'Error';
 	}
@@ -11442,18 +11471,31 @@ var $author$project$Main$expToString = function (exp) {
 		case 'Paren':
 			var expression = exp.a;
 			return '( ' + ($author$project$Main$expToString(expression) + ' )');
-		case 'Max':
-			var left = exp.a;
-			var right = exp.b;
-			return 'Max( ' + ($author$project$Main$expToString(left) + (',' + ($author$project$Main$expToString(right) + ' )')));
 		case 'Let':
 			var _var = exp.a;
 			var e1 = exp.b;
 			var e2 = exp.c;
 			return 'Let( ' + (_var + (' = ' + ($author$project$Main$expToString(e1) + (' In ' + ($author$project$Main$expToString(e2) + ' )')))));
-		default:
+		case 'Var':
 			var _var = exp.a;
 			return 'Var(' + (_var + ')');
+		case 'If':
+			var cond = exp.a;
+			var t = exp.b;
+			var f = exp.c;
+			return 'If ' + ($author$project$Main$expToString(cond) + (' Then ' + ($author$project$Main$expToString(t) + (' Else ' + $author$project$Main$expToString(f)))));
+		case 'GreaterThan':
+			var left = exp.a;
+			var right = exp.b;
+			return $author$project$Main$expToString(left) + (' > ' + $author$project$Main$expToString(right));
+		case 'LessThan':
+			var left = exp.a;
+			var right = exp.b;
+			return $author$project$Main$expToString(left) + (' < ' + $author$project$Main$expToString(right));
+		default:
+			var left = exp.a;
+			var right = exp.b;
+			return $author$project$Main$expToString(left) + (' = ' + $author$project$Main$expToString(right));
 	}
 };
 var $author$project$Main$resultToString = function (result) {

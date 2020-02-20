@@ -13,6 +13,7 @@ module IorinParser exposing
   , oneOrMore
   , map
   , fmap
+  , lazy
   , zero
   , return
   , fail
@@ -137,6 +138,10 @@ fmap f pa =
         f hd tl
       _ -> Failed
   )
+
+lazy : (() -> Parser a) -> Parser a
+lazy a =
+  fmap a (return ())
 
 zero : Parser ()
 zero = return ()

@@ -1,448 +1,210 @@
-module Main exposing (main)
-
-import Browser
-import Html exposing (Html, button, div, text, input, br)
-import Html.Attributes exposing (type_)
-import Html.Events exposing (onClick, onInput)
-import Dict exposing (Dict)
-import IorinParser exposing (..)
-
-import Debug exposing (log)
-
-type alias Model =
-  { inputString : String
-  , strForCalc : Res LambdaExp
-  }
-
-initialModel : Model
-initialModel =
-  { inputString = ""
-  , strForCalc = Failed
-  }
-
-type Exp
-  = Number Int
-  | Add Exp Exp   --<Exp> + <Exp>
-  | Sub Exp Exp   --<Exp> - <Exp>
-  | Mul Exp Exp   --<Exp> * <Exp>
-  | Pow Exp Exp   --<Exp> ^ <Exp>
-  | Paren Exp     --(<Exp>)
-  | Let Variable Exp Exp -- let x=2 in x*4
-  | Var Variable
-  | If Exp Exp Exp -- if condition then t else f
-  | GreaterThan Exp Exp -- exp > exp (1 or 0)
-  | LessThan Exp Exp -- exp < exp (1 or 0)
-  | Equal Exp Exp -- exp = exp (1 or 0)
-
-type LambdaExp
-  = LambdaVar Int
-  | LambdaAbs Variable LambdaExp
-  | LambdaApp LambdaExp LambdaExp
-
-type alias Variable = String
-
-type Msg
-  = Input String
-  | Pressed
-
-
-update : Msg -> Model -> Model
-update msg model =
-  case msg of
-    Input str ->
-      { model | inputString = str }
-
-    Pressed ->
-      { model | strForCalc = model.inputString
-        |> lambdaParser []
-        --|> expParser
-      }
-
-
-
-evaluate : Dict Variable Int -> Exp -> Int
-evaluate dict exp =
-  case exp of
-    Number n -> n
-    Add left right -> evaluate dict left + evaluate dict right
-    Sub left right -> evaluate dict left - evaluate dict right
-    Mul left right -> evaluate dict left * evaluate dict right
-    Pow left right -> evaluate dict left ^ evaluate dict right
-    Paren expression -> evaluate dict expression
-    Let var e1 e2 -> evaluate (Dict.insert var (evaluate dict e1) dict) e2
-    Var variable ->
-      let
-        maybeInt = Dict.get variable dict
-      in
-        case maybeInt of
-          Just e -> e
-          Nothing -> 0
-    If cond t f ->
-      if evaluate dict cond /= 0
-      then evaluate dict t
-      else evaluate dict f
-    GreaterThan left right ->
-      if evaluate dict left > evaluate dict right
-      then 1
-      else 0
-    LessThan left right ->
-      if evaluate dict left < evaluate dict right
-      then 1
-      else 0
-    Equal left right ->
-      if evaluate dict left == evaluate dict right
-      then 1
-      else 0
-      
-
-lambdaParser : List Variable -> Parser LambdaExp
-lambdaParser list =
-  unitOr
-    (\() -> lambdaAbsParser (list |> log "abs" ))
-    ( unitOr
-      (\() -> lambdaAppParser (list |> log "app") )
-      (lambdaVarParser (list |>log "var" ) )
-    )
-
-
-lambdaAbsParser : List Variable -> Parser LambdaExp
-lambdaAbsParser list =
-  concat
-    (
-      intersperceConcat3 zeroOrMoreSpaceParser
-        bsParser variableParser (string "->")
-        (\_ var _ -> var :: list )
-    )
-    zeroOrMoreSpaceParser
-    (\varList _ -> varList)
-  |> fmap (\varList -> lambdaParser varList)
-
-
-lambdaAppParser : List Variable -> Parser LambdaExp
-lambdaAppParser list =
-  intersperceConcat oneOrMoreSpaceParser
-    (lambdaParser list) (lambdaParser list)
-    (\left right -> LambdaApp left right )
-
-lambdaVarParser : List Variable -> Parser LambdaExp
-lambdaVarParser list =
-  variableParser
-    |> map (\var -> varSearch var list 0)
-    |> fmap
-      (\maybeInt ->
-        case maybeInt of
-          Just n -> return (LambdaVar n)
-          _ -> fail
-      ) 
-
-varSearch : Variable -> List Variable -> Int -> Maybe Int
-varSearch var list cnt =
-  case list of
-    [] -> Nothing
-    hd :: tl ->
-      if hd == var
-      then cnt |> Just
-      else varSearch var tl (cnt+1)
-
-lambdaExpToString : Res LambdaExp -> List Variable -> String
-lambdaExpToString res list =
-  case res of
-    Success lambdaExp tl ->
-      case lambdaExp of
-        LambdaVar n ->
-          getName n list
-        LambdaAbs var exp ->
-          "\\ "++var++" ->"++(lambdaExpToString (Success exp "") (var::list) )
-        LambdaApp left right ->
-          (lambdaExpToString (Success left "") list)++" "++(lambdaExpToString (Success right "") list)
-    Failed -> "Error"
-
-getName : Int -> List Variable -> String
-getName n list =
-  let
-    getNameHelper =
-      case n of
-        0 -> List.head list
-        _ ->
-          case list of
-            [] -> Nothing
-            hd :: tl ->
-              getName (n-1) tl |> Just
-  in
-    case getNameHelper of
-      Just str -> str
-      _ -> "Error"
-
-expParser : Parser Exp
-expParser = expressionParser
-
-zeroOrMoreSpaceParser =
-  zeroOrMore (charMatch ' ')
-    |> map (always ())
-
-oneOrMoreSpaceParser =
-  concat
-    (charMatch ' ') zeroOrMoreSpaceParser
-    (\_ _ -> ())
-
-ifParser =
-  intersperceConcat oneOrMoreSpaceParser
-    (
-      intersperceConcat3 oneOrMoreSpaceParser
-        (string "if") conditionParser (string "then")
-        (\_ cond _ -> cond)
-    )
-    (
-      intersperceConcat3 oneOrMoreSpaceParser
-        expressionParser (string "else") expressionParser
-        (\t _ f -> ( t, f ))
-    )
-    (\cond ( t, f ) -> If cond t f)
-
-conditionParser : Parser Exp
-conditionParser =
-  intersperceConcat3 zeroOrMoreSpaceParser
-    expressionParser comparatorParser expressionParser
-    (\left compare right -> compare left right)
-
-comparatorParser : Parser (Exp -> Exp -> Exp)
-comparatorParser =
-  choice [gtParser,ltParser,eqParser]
-
-
-varDecl =
-  intersperceConcat3 zeroOrMoreSpaceParser
-    variableParser (charMatch '=') expressionParser
-    (\var _ exp -> ( var, exp ))
-
-letParser =
-  intersperceConcat4 oneOrMoreSpaceParser
-    (string "let") varDecl (string "in") expressionParser
-    (\_ ( var, e1 ) _ e2 -> Let var e1 e2)
-
-variableParser : Parser String
-variableParser =
-  concat
-    (char Char.isAlpha) (zeroOrMore (char (\c->(Char.isAlphaNum c)||(c=='_') )))
-    (\c list ->
-      c :: list
-        |> String.fromList
-    )
-    |> fmap
-      (\str ->
-        case str of
-          "let" -> fail
-          "in"  -> fail
-          _     -> return str
-      )
-
-parenParser : Parser Exp
-parenParser =
-  intersperceConcat3 zeroOrMoreSpaceParser
-    parenOpenParser expressionParser parenCloseParser
-    (\_ exp _ -> Paren exp)
-
-loopables () =
-  choice [parenParser,letParser,ifParser]
-
-numOrLoopables =
-  unitChoice loopables [numParser,(variableParser |> map Var)]
-
-hatNumParser =
-  intersperceConcat zeroOrMoreSpaceParser
-    hatParser numOrLoopables
-    (\hat exp ->(\left -> hat left exp) )
-
-hatNumListParser =
-  zeroOrMore
-    ( concat
-      zeroOrMoreSpaceParser
-      hatNumParser
-      (\_ exp->exp)
-    )
-
-powParser =
-  concat
-    numOrLoopables hatNumListParser
-    (\left expList ->
-      expList
-        |> List.foldl (\exp result -> exp result) left
-    )
-
-starNumParser =
-  intersperceConcat zeroOrMoreSpaceParser
-    starParser powParser
-    (\star exp ->(\left -> star left exp) )
-
-starNumListParser =
-  zeroOrMore
-    ( concat
-      zeroOrMoreSpaceParser
-      starNumParser
-      (\_ exp->exp)
-    )
-
-mulParser =
-  concat
-    powParser starNumListParser
-    (\left expList ->
-      expList
-        |> List.foldl (\exp result -> exp result) left
-    )
-
-plusMinusParser =
-  or plusParser minusParser
-addNumParser =
-  intersperceConcat zeroOrMoreSpaceParser
-    plusMinusParser mulParser
-    (\addOrSub exp ->(\left -> addOrSub left exp) )
-
-addNumListParser =
-  zeroOrMore
-    ( concat
-      zeroOrMoreSpaceParser
-      addNumParser
-      (\_ exp->exp)
-    )
-
-expressionParser =
-  concat
-    mulParser addNumListParser
-  (\left expList ->
-    expList
-      |> List.foldl (\exp result -> exp result) left
+module IorinParser exposing
+  ( Parser
+  , Res (..)
+  , concat
+  , concat3
+  , concat4
+  , concat5
+  , or
+  , unitOr
+  , choice
+  , unitChoice
+  , zeroOrMore
+  , oneOrMore
+  , map
+  , fmap
+  , lazy
+  , zero
+  , return
+  , fail
+  , char
+  , charMatch
+  , string
+  , intersperceConcat
+  , intersperceConcat3
+  , intersperceConcat4
+  , intersperceConcat5
   )
 
-numParser : Parser Exp
-numParser =
-  oneOrMore digitParser
-    |> map (String.concat >> String.toInt)
-    |> fmap (\ maybeInt ->
-      case maybeInt of
-        Just n -> return (Number n)
-        Nothing -> fail
+import Debug exposing(log)
+
+type alias Parser a = String -> Res a
+
+type Res a
+  = Success a String
+  | Failed
+
+concat : Parser a -> Parser b -> ( a -> b -> c ) -> Parser c
+concat pa pb f =
+  pa
+    |> fmap (\a -> map (f a) pb)
+
+concat3 : Parser a -> Parser b -> Parser c -> (a -> b -> c -> d) -> Parser d
+concat3 pa pb pc f =
+  pa
+    |> fmap (\a -> concat pb pc (f a))
+
+concat4 : Parser a -> Parser b -> Parser c -> Parser d -> (a -> b -> c -> d -> e) -> Parser e
+concat4 pa pb pc pd f =
+  pa
+    |> fmap (\a -> concat3 pb pc pd (f a))
+
+concat5 : Parser a -> Parser b -> Parser c -> Parser d -> Parser e -> (a -> b -> c -> d -> e -> f) -> Parser f
+concat5 pa pb pc pd pe f =
+  pa
+    |> fmap (\a -> concat4 pb pc pd pe (f a))
+
+concat6 pa pb pc pd pe pf f =
+  pa
+    |> fmap (\a -> concat5 pb pc pd pe pf (f a))
+
+concat7 pa pb pc pd pe pf pg f =
+  pa
+    |> fmap (\a -> concat6 pb pc pd pe pf pg (f a))
+
+concat8 pa pb pc pd pe pf pg ph f =
+  pa
+    |> fmap (\a -> concat7 pb pc pd pe pf pg ph (f a))
+
+concat9 pa pb pc pd pe pf pg ph pi f =
+  pa
+    |> fmap (\a -> concat8 pb pc pd pe pf pg ph pi (f a))
+
+
+or : Parser a -> Parser a -> Parser a
+or p1 p2 =
+  (\str ->
+    case p1 str of
+      Success hd tl -> Success hd tl |> log "or1"
+      _ ->
+        case p2 str of
+          Success hd tl -> Success hd tl |> log "or2"
+          _ -> Failed
+  )
+
+unitOr : (() -> Parser a) -> Parser a -> Parser a
+unitOr up p =
+  (\str ->
+    case up () str of
+      Success hd tl -> Success hd tl
+      _ ->
+        case p str of
+          Success hd tl -> Success hd tl
+          _ -> Failed
+  )
+
+choice : List (Parser a) -> Parser a
+choice list =
+  List.foldl or fail list
+
+unitChoice : (() -> Parser a) -> List (Parser a) -> Parser a
+unitChoice p list =
+  unitOr p (choice list)
+
+zeroOrMore : Parser a -> Parser (List a)
+zeroOrMore p =
+  or
+    (oneOrMore p)
+    (map (always []) zero)
+
+oneOrMore : Parser a -> Parser (List a)
+oneOrMore p =
+  let
+    parseHelper : List a -> Parser (List a)
+    parseHelper list str =
+      case p str of
+        Success hd tl ->
+          parseHelper (hd::list) tl
+        _ ->
+          Success (List.reverse list) str
+  in
+    (\str ->
+      case p str of
+        Success hd tl ->
+          parseHelper [hd] tl
+        _ -> Failed
     )
 
-digitParser : Parser String
-digitParser =
-  char Char.isDigit
-    |> map String.fromChar
+map : (a -> b) -> Parser a -> Parser b
+map f pa =
+  pa
+    |> fmap (\a -> return (f a))
 
-plusParser : Parser (Exp -> Exp -> Exp)
-plusParser =
-  charMatch '+'
-    |> map (always Add)
+fmap : (a -> Parser b) -> Parser a -> Parser b
+fmap f pa =
+  (\str ->
+    case pa str of
+      Success hd tl ->
+        f hd tl |> log "fmap"
+      _ -> Failed
+  )
 
-minusParser : Parser (Exp -> Exp -> Exp)
-minusParser =
-  charMatch '-'
-    |> map (always Sub)
+lazy : (() -> Parser a) -> Parser a
+lazy a =
+  fmap a (return ())
 
-starParser : Parser (Exp -> Exp -> Exp)
-starParser =
-  charMatch '*'
-    |> map (always Mul)
+zero : Parser ()
+zero = return ()
 
-hatParser : Parser (Exp -> Exp -> Exp)
-hatParser =
-  charMatch '^'
-    |> map (always Pow)
+return : a -> Parser a
+return a = (\str -> Success a str)
 
-parenOpenParser : Parser ()
-parenOpenParser =
-  charMatch '('
+fail : Parser a
+fail = (\str -> Failed |> log str)
 
-parenCloseParser : Parser ()
-parenCloseParser =
-  charMatch ')'
+char : (Char -> Bool) -> Parser Char
+char f =
+  (\str ->
+    case String.uncons str of
+      Just ( hd, tl ) ->
+        if f hd
+        then Success hd tl |> log "char"
+        else Failed
+      _ -> Failed
+  )
 
-commaParser : Parser ()
-commaParser =
-  charMatch ','
+charMatch : Char -> Parser ()
+charMatch c =
+  char ((==) c)
+    |> map (always ())
 
-gtParser : Parser (Exp -> Exp -> Exp)
-gtParser =
-  charMatch '>'
-    |> map (always GreaterThan)
+string : String -> Parser String
+string str =
+  forParser (String.length str) (char (always True))
+    |> map String.fromList
+    |> fmap
+      (\parsedStr ->
+        if parsedStr==str
+        then return str
+        else fail
+      )
 
-ltParser : Parser (Exp -> Exp -> Exp)
-ltParser =
-  charMatch '<'
-    |> map (always LessThan)
+forParser : Int -> Parser a -> Parser (List a)
+forParser n p =
+  case n of
+    0 -> return []
+    _ ->
+      concat
+        p (forParser (n-1) p)
+        (\a list -> a :: list)
 
-eqParser : Parser (Exp -> Exp -> Exp)
-eqParser =
-  charMatch '='
-    |> map (always Equal)
+intersperceConcat : Parser i -> Parser a -> Parser b -> (a -> b -> c) -> Parser c
+intersperceConcat i p1 p2 f =
+  concat3
+    p1 i p2
+    (\a _ b -> f a b)
 
-bsParser =
-  charMatch '\\'
+intersperceConcat3 i p1 p2 p3 f =
+  concat5
+    p1 i p2 i p3
+    (\a _ b _ c -> f a b c)
 
+intersperceConcat4 i p1 p2 p3 p4 f =
+  concat7
+    p1 i p2 i p3 i p4
+    (\a _ b _ c _ d -> f a b c d)
 
-view : Model -> Html Msg
-view model =
-  div []
-    [ input
-      [ type_ "textbox"
-      , onInput Input
-      ][]
-    , button [ onClick Pressed ][ text "Parse it !" ]
-    , br[][]
-    --, text <| resultToString model.strForCalc
-    , text <| lambdaExpToString model.strForCalc []
-    , br[][]
-    --, text <| resultToEvaluatedString model
-    ]
-
-{-
-resultToEvaluatedString : Model -> String
-resultToEvaluatedString model =
-  case model.strForCalc of
-    Success exp tl ->
-      exp
-        |> evaluate Dict.empty
-        |> String.fromInt
-    _ -> "Error"
-
-resultToString : Res Exp -> String
-resultToString result =
-  case result of
-    Success exp tl -> expToString exp
-    Failed -> "Error"
-
-expToString : Exp -> String
-expToString exp =
-  case exp of
-    Number n -> String.fromInt n
-    Add left right ->
-      "Add( " ++ (expToString left) ++ ", " ++ (expToString right) ++ " )"
-    Sub left right ->
-      "Sub( " ++ (expToString left) ++ ", " ++ (expToString right) ++ " )"
-    Mul left right ->
-      "Mul( " ++ (expToString left) ++ ", " ++ (expToString right) ++ " )"
-    Pow left right ->
-      "Pow( " ++ (expToString left) ++ ", " ++ (expToString right) ++ " )"
-    Paren expression ->
-      "( " ++ expToString expression ++ " )"
-    Let var e1 e2 ->
-      "Let( " ++ var ++ " = " ++ expToString e1 ++ " In " ++ expToString e2 ++ " )"
-    Var var ->
-      "Var("++var++")"
-    If cond t f ->
-      "If "++expToString cond++" Then "++expToString t++" Else "++expToString f
-    GreaterThan left right ->
-      expToString left++" > "++expToString right
-    LessThan left right ->
-      expToString left++" < "++expToString right
-    Equal left right ->
-      expToString left++" = "++expToString right
-
--}
-
-main : Program () Model Msg
-main =
-  Browser.sandbox
-    { init = initialModel
-    , view = view
-    , update = update
-    }
+intersperceConcat5 i p1 p2 p3 p4 p5 f =
+  concat9
+    p1 i p2 i p3 i p4 i p5
+    (\a _ b _ c _ d _ e -> f a b c d e)

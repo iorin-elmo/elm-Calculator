@@ -1,4 +1,4 @@
-module Main exposing (main)
+module Main exposing (..)
 
 import Browser
 import Html exposing (Html, button, div, text, input, br)
@@ -36,7 +36,7 @@ type Exp
   | Var Variable
   | If Exp Exp Exp -- if condition then t else f
   | GreaterThan Exp Exp -- exp > exp (1 or 0)
-  | LessThan Exp Exp -- exp < exp (1 or 0)
+  | LessThan Exp Exp -- exp < exp (1 (if)or 0)
   | Equal Exp Exp -- exp = exp (1 or 0)
 -}
 type Term

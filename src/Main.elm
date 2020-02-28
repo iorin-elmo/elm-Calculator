@@ -244,7 +244,7 @@ boolParser =
 
 lambdaParenParser : TypeContext -> Parser Term
 lambdaParenParser list =
-  intersperceConcat3 zeroOrMoreSpaceParser
+  intersperseConcat3 zeroOrMoreSpaceParser
     parenOpenParser (lambdaParser list) parenCloseParser
     (\_ exp _ -> exp)
 
@@ -262,7 +262,7 @@ lambdaAbsParser : TypeContext -> Parser Term
 lambdaAbsParser list =
   concat
     (
-      intersperceConcat4 zeroOrMoreSpaceParser
+      intersperseConcat4 zeroOrMoreSpaceParser
         bsParser variableParser typeAnnotationParser (string "->")
         (\_ var ty _ -> ( var, ty ):: list )
     )
@@ -282,18 +282,18 @@ lambdaAbsParser list =
 
 typeAnnotationParser : Parser Type
 typeAnnotationParser =
-  intersperceConcat zeroOrMoreSpaceParser
+  intersperseConcat zeroOrMoreSpaceParser
     (charMatch ':') (typeParser ())
     (\_ ty -> ty)
 
 typeParser : () -> Parser Type
 typeParser =
   (\()->
-    intersperceConcat zeroOrMoreSpaceParser
+    intersperseConcat zeroOrMoreSpaceParser
       (
         unitOr
           (\() ->
-            (intersperceConcat3 zeroOrMoreSpaceParser
+            (intersperseConcat3 zeroOrMoreSpaceParser
               parenOpenParser (lazy typeParser) parenCloseParser
               (\_ ty _ -> ty)
             )
@@ -310,7 +310,7 @@ typeParser =
 arrowAndTypeParser : () -> Parser (Type -> Type)
 arrowAndTypeParser =
   (\()->
-    intersperceConcat zeroOrMoreSpaceParser
+    intersperseConcat zeroOrMoreSpaceParser
       (string "->") (lazy typeParser)
       (\_ ty -> (\arg -> TypeFunction arg ty))
   )
@@ -353,10 +353,10 @@ varSearch var list cnt =
 
 termIfParser :() -> TypeContext -> Parser Term
 termIfParser () list =
-  intersperceConcat4 oneOrMoreSpaceParser
+  intersperseConcat4 oneOrMoreSpaceParser
     (string "if") (lambdaParser list)
     (string "then")
-    (intersperceConcat3 oneOrMoreSpaceParser
+    (intersperseConcat3 oneOrMoreSpaceParser
       (lambdaParser list)
       (string "else")
       (lambdaParser list)
@@ -428,14 +428,14 @@ oneOrMoreSpaceParser =
     (\_ _ -> ())
 {-
 ifParser =
-  intersperceConcat oneOrMoreSpaceParser
+  intersperseConcat oneOrMoreSpaceParser
     (
-      intersperceConcat3 oneOrMoreSpaceParser
+      intersperseConcat3 oneOrMoreSpaceParser
         (string "if") conditionParser (string "then")
         (\_ cond _ -> cond)
     )
     (
-      intersperceConcat3 oneOrMoreSpaceParser
+      intersperseConcat3 oneOrMoreSpaceParser
         expressionParser (string "else") expressionParser
         (\t _ f -> ( t, f ))
     )
@@ -443,7 +443,7 @@ ifParser =
 
 conditionParser : Parser Exp
 conditionParser =
-  intersperceConcat3 zeroOrMoreSpaceParser
+  intersperseConcat3 zeroOrMoreSpaceParser
     expressionParser comparatorParser expressionParser
     (\left compare right -> compare left right)
 
@@ -453,12 +453,12 @@ comparatorParser =
 
 
 varDecl =
-  intersperceConcat3 zeroOrMoreSpaceParser
+  intersperseConcat3 zeroOrMoreSpaceParser
     variableParser (charMatch '=') expressionParser
     (\var _ exp -> ( var, exp ))
 
 letParser =
-  intersperceConcat4 oneOrMoreSpaceParser
+  intersperseConcat4 oneOrMoreSpaceParser
     (string "let") varDecl (string "in") expressionParser
     (\_ ( var, e1 ) _ e2 -> Let var e1 e2)
 -}
@@ -485,7 +485,7 @@ variableParser =
 {-
 parenParser : Parser Exp
 parenParser =
-  intersperceConcat3 zeroOrMoreSpaceParser
+  intersperseConcat3 zeroOrMoreSpaceParser
     parenOpenParser expressionParser parenCloseParser
     (\_ exp _ -> Paren exp)
 
@@ -496,7 +496,7 @@ numOrLoopables =
   unitChoice loopables [numParser,(variableParser |> map Var)]
 
 hatNumParser =
-  intersperceConcat zeroOrMoreSpaceParser
+  intersperseConcat zeroOrMoreSpaceParser
     hatParser numOrLoopables
     (\hat exp ->(\left -> hat left exp) )
 
@@ -517,7 +517,7 @@ powParser =
     )
 
 starNumParser =
-  intersperceConcat zeroOrMoreSpaceParser
+  intersperseConcat zeroOrMoreSpaceParser
     starParser powParser
     (\star exp ->(\left -> star left exp) )
 
@@ -540,7 +540,7 @@ mulParser =
 plusMinusParser =
   or plusParser minusParser
 addNumParser =
-  intersperceConcat zeroOrMoreSpaceParser
+  intersperseConcat zeroOrMoreSpaceParser
     plusMinusParser mulParser
     (\addOrSub exp ->(\left -> addOrSub left exp) )
 

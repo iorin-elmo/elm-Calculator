@@ -102,14 +102,14 @@ oneOrMoreSpaceParser =
     (\_ _ -> ())
 
 ifParser =
-  intersperceConcat oneOrMoreSpaceParser
+  intersperseConcat oneOrMoreSpaceParser
     (
-      intersperceConcat3 oneOrMoreSpaceParser
+      intersperseConcat3 oneOrMoreSpaceParser
         (string "if") conditionParser (string "then")
         (\_ cond _ -> cond)
     )
     (
-      intersperceConcat3 oneOrMoreSpaceParser
+      intersperseConcat3 oneOrMoreSpaceParser
         expressionParser (string "else") expressionParser
         (\t _ f -> ( t, f ))
     )
@@ -117,7 +117,7 @@ ifParser =
 
 conditionParser : Parser Exp
 conditionParser =
-  intersperceConcat3 zeroOrMoreSpaceParser
+  intersperseConcat3 zeroOrMoreSpaceParser
     expressionParser comparatorParser expressionParser
     (\left compare right -> compare left right)
 
@@ -127,12 +127,12 @@ comparatorParser =
 
 
 varDecl =
-  intersperceConcat3 zeroOrMoreSpaceParser
+  intersperseConcat3 zeroOrMoreSpaceParser
     variableParser (charMatch '=') expressionParser
     (\var _ exp -> ( var, exp ))
 
 letParser =
-  intersperceConcat4 oneOrMoreSpaceParser
+  intersperseConcat4 oneOrMoreSpaceParser
     (string "let") varDecl (string "in") expressionParser
     (\_ ( var, e1 ) _ e2 -> Let var e1 e2)
 
@@ -154,7 +154,7 @@ variableParser =
 
 parenParser : Parser Exp
 parenParser =
-  intersperceConcat3 zeroOrMoreSpaceParser
+  intersperseConcat3 zeroOrMoreSpaceParser
     parenOpenParser expressionParser parenCloseParser
     (\_ exp _ -> Paren exp)
 
@@ -165,7 +165,7 @@ numOrLoopables =
   unitChoice loopables [numParser,(variableParser |> map Var)]
 
 hatNumParser =
-  intersperceConcat zeroOrMoreSpaceParser
+  intersperseConcat zeroOrMoreSpaceParser
     hatParser numOrLoopables
     (\hat exp ->(\left -> hat left exp) )
 
@@ -186,7 +186,7 @@ powParser =
     )
 
 starNumParser =
-  intersperceConcat zeroOrMoreSpaceParser
+  intersperseConcat zeroOrMoreSpaceParser
     starParser powParser
     (\star exp ->(\left -> star left exp) )
 
@@ -209,7 +209,7 @@ mulParser =
 plusMinusParser =
   or plusParser minusParser
 addNumParser =
-  intersperceConcat zeroOrMoreSpaceParser
+  intersperseConcat zeroOrMoreSpaceParser
     plusMinusParser mulParser
     (\addOrSub exp ->(\left -> addOrSub left exp) )
 

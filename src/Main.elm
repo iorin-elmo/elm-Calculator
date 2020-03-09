@@ -24,21 +24,24 @@ initialModel =
   , types = Err "***"
   }
 
-{-
-type Exp
-  = Number Int
-  | Add Exp Exp   --<Exp> + <Exp>
-  | Sub Exp Exp   --<Exp> - <Exp>
-  | Mul Exp Exp   --<Exp> * <Exp>
-  | Pow Exp Exp   --<Exp> ^ <Exp>
-  | Paren Exp     --(<Exp>)
-  | Let Variable Exp Exp -- let x=2 in x*4
-  | Var Variable
-  | If Exp Exp Exp -- if condition then t else f
-  | GreaterThan Exp Exp -- exp > exp (1 or 0)
-  | LessThan Exp Exp -- exp < exp (1 (if)or 0)
-  | Equal Exp Exp -- exp = exp (1 or 0)
--}
+--<term>::= <var>
+--        | \ <var> : <type> -> <term>
+--        | <term> <term>
+--        | true
+--        | false
+--        | if <term> then <term> else <term>
+--        | <int>
+--        | <term> <binaryOp> <term>
+--        | <term> <compOp> <term>
+
+--<type>::= <bool>
+--        | <int>
+--        | <type> -> <type>
+
+--<binaryOp>::= + | - | * | ^
+--<compOp>  ::= > | < | =
+
+
 type Term
   = LambdaVar Int Type
   | LambdaAbs Variable Type Term
@@ -46,19 +49,29 @@ type Term
   | TermTrue
   | TermFalse
   | TermIf Term Term Term
+  | TermInt Int
+  | Calc BinaryOp Term Term
+  | Compare CompOp Term Term
+
+type CompOp
+  = GreaterThan
+  | LessThan
+  | Equal
+
+type BinaryOp
+  = Add
+  | Sub
+  | Mul
+  | Pow
 
 type Type
   = TypeBool
+  | TypeInt
   | TypeFunction Type Type
 
-{-
-type LambdaExp
-  = LambdaVar Int
-  | LambdaAbs Variable LambdaExp
-  | LambdaApp LambdaExp LambdaExp
--}
-
 type alias Variable = String
+type alias NamingContext = List Variable
+type alias TypeContext = List ( Variable, Type )
 
 type Msg
   = Input String
@@ -75,7 +88,7 @@ update msg model =
         parseRes =
           model.inputString
             |> String.toLower
-            |> lambdaParser []
+            |> termParser []
             |> (\res ->
                 case res of
                   Success hd tl -> hd
@@ -84,25 +97,32 @@ update msg model =
       in
         { model |
           strForCalc = parseRes
-        , result = parseRes |> lambdaEval
+        , result = parseRes |> evaluate
         , types = parseRes |> typeOf []
           --|> expParser
         }
 
-lambdaEval : Term -> Term
-lambdaEval exp =
+evaluate : Term -> Term
+evaluate exp =
   if isValue exp
   then exp
-  else lambdaEval (reduction exp)
+  else evaluate (reduction exp)
 
 isValue : Term -> Bool
 isValue exp =
   case exp of
     TermTrue -> True
     TermFalse-> True
+    TermInt _-> True
     LambdaAbs _ _ _ -> True
     LambdaVar n _ -> if n == -1 then True else False
     _ -> False
+
+termToInt : Term -> Int
+termToInt t =
+  case t of
+    TermInt n -> n
+    _ -> 0
 
 reduction : Term -> Term
 reduction exp =
@@ -112,15 +132,38 @@ reduction exp =
         LambdaAbs _ _ e ->
           let
             test = replace 0 right e
-            debug = log "exp" (lambdaExpToString test)
+            debug = log "exp" (termToString test)
           in
             test
         LambdaApp _ _ -> LambdaApp (reduction left) right
         _ -> exp
     TermIf cond t1 t2 ->
-      if (lambdaEval cond == TermTrue)
+      if (evaluate cond == TermTrue)
       then t1
       else t2
+    Calc op t1 t2 ->
+      let
+        i1 = t1 |> evaluate |> termToInt
+        i2 = t2 |> evaluate |> termToInt
+      in
+        case op of
+          Add -> TermInt (i1+i2)
+          Sub -> TermInt (i1-i2)
+          Mul -> TermInt (i1*i2)
+          Pow -> TermInt (i1^i2)
+    Compare op t1 t2 ->
+      let
+        i1 = t1 |> evaluate |> termToInt
+        i2 = t2 |> evaluate |> termToInt
+        boolToTerm bool =
+          if bool
+          then TermTrue
+          else TermFalse
+      in
+        case op of
+          GreaterThan -> boolToTerm (i1 > i2)
+          LessThan    -> boolToTerm (i1 < i2)
+          Equal       -> boolToTerm (i1 ==i2)
     _ -> exp |> log "exp"
 
 --    (\t-> t^2) (x+2)
@@ -139,57 +182,34 @@ replace from to target =
       LambdaAbs var ty (replace (from+1) to e )
     TermIf cond t1 t2 ->
       TermIf (replace from to cond) (replace from to t1) (replace from to t2)
+    Calc op t1 t2 ->
+      Calc op (replace from to t1) (replace from to t2)
+    Compare op t1 t2 ->
+      Compare op (replace from to t1) (replace from to t2)
     _ -> target
-
-{-
-(\n -> \m -> m n) u LambdaApp (LambdaAbs "n" (LambdaAbs "m" (LambdaApp (LambdaVar 0) (LambdaVar 1)))) u
-(\m -> m u)
-
-(\n -> (\m -> m) n) u
-((\m -> m )u)
-u
--}
-{-
-evaluate : Dict Variable Int -> Exp -> Int
-evaluate dict exp =
-  case exp of
-    Number n -> n
-    Add left right -> evaluate dict left + evaluate dict right
-    Sub left right -> evaluate dict left - evaluate dict right
-    Mul left right -> evaluate dict left * evaluate dict right
-    Pow left right -> evaluate dict left ^ evaluate dict right
-    Paren expression -> evaluate dict expression
-    Let var e1 e2 -> evaluate (Dict.insert var (evaluate dict e1) dict) e2
-    Var variable ->
-      let
-        maybeInt = Dict.get variable dict
-      in
-        case maybeInt of
-          Just e -> e
-          Nothing -> 0
-    If cond t f ->
-      if evaluate dict cond /= 0
-      then evaluate dict t
-      else evaluate dict f
-    GreaterThan left right ->
-      if evaluate dict left > evaluate dict right
-      then 1
-      else 0
-    LessThan left right ->
-      if evaluate dict left < evaluate dict right
-      then 1
-      else 0
-    Equal left right ->
-      if evaluate dict left == evaluate dict right
-      then 1
-      else 0
--}
 
 typeOf : TypeContext -> Term -> Result String Type
 typeOf list term =
   case term of
     TermTrue -> Ok TypeBool
     TermFalse -> Ok TypeBool
+    TermInt _ -> Ok TypeInt
+    Calc _ t1 t2 ->
+      let
+        typet1 = typeOf list t1
+        typet2 = typeOf list t2
+      in
+        if (typet1 == Ok TypeInt)&&(typet2 == Ok TypeInt)
+        then Ok TypeInt
+        else Err "Calc Argument is wrong"
+    Compare _ t1 t2 ->
+      let
+        typet1 = typeOf list t1
+        typet2 = typeOf list t2
+      in
+        if (typet1 == Ok TypeInt)&&(typet2 == Ok TypeInt)
+        then Ok TypeBool
+        else Err "Compare Argument is wrong"
     TermIf cond t1 t2 ->
       let
         typet1 = typeOf list t1
@@ -223,40 +243,21 @@ typeToString ty =
       "(" ++ typeToString (Ok arg) ++ "->" ++ typeToString (Ok ret) ++ ")"
     Ok TypeBool ->
       "Bool"
-    Err "***" -> "---"
+    Ok TypeInt ->
+      "Int"
     Err str -> str
 
-lambdaParser : TypeContext -> Parser Term
-lambdaParser list =
-  unitOr
-    (\()->lambdaAppParser list)
-    (exceptingApp list)
+termParser : TypeContext -> Parser Term
+termParser list =
+  choice
+    [ lambdaAbsParser list
+    , termIfParser list
+    , calcCompParser list
+    , lambdaAppParser list
+    , strongerThanApp list
+    ]
 
-exceptingApp list =
-  choice [(parenOrVarOrAbs list),(lazy (\() -> termIfParser () list)),boolParser]
-
-
-boolParser : Parser Term
-boolParser =
-  or
-    (string "true" |> map (always TermTrue))
-    (string "false" |> map (always TermFalse))
-
-lambdaParenParser : TypeContext -> Parser Term
-lambdaParenParser list =
-  intersperseConcat3 zeroOrMoreSpaceParser
-    parenOpenParser (lambdaParser list) parenCloseParser
-    (\_ exp _ -> exp)
-
-parenOrVarOrAbs : TypeContext -> Parser Term
-parenOrVarOrAbs list =
-  unitOr
-    (\() -> lambdaAbsParser (list |> log "abs"))
-    (unitOr
-      (\() -> lambdaParenParser list)
-      (lambdaVarParser (list|> log "var"))
-    )
-
+-- TERM PARSER
 
 lambdaAbsParser : TypeContext -> Parser Term
 lambdaAbsParser list =
@@ -270,7 +271,7 @@ lambdaAbsParser list =
     (\varList _ -> varList)
   |> fmap
     (\varList ->
-      lambdaParser varList
+      termParser varList
         |> fmap
           (\exp ->
             case varList of
@@ -279,6 +280,88 @@ lambdaAbsParser list =
                 return (LambdaAbs hdVar hdType exp)
           )
     )
+  |> pLog "lambdaAbs"
+
+termIfParser : TypeContext -> Parser Term
+termIfParser list =
+  intersperseConcat4 oneOrMoreSpaceParser
+    (string "if") (calcCompParser list)
+    (string "then")
+    (intersperseConcat3 oneOrMoreSpaceParser
+      (calcCompParser list)
+      (string "else")
+      (calcCompParser list)
+      (\t1 _ t2 -> (t1,t2))
+    )
+    (\_ c _ (t1,t2) -> TermIf c t1 t2)
+  |> pLog "termIf"
+
+calcCompParser list =
+  foldl
+    ( concat
+      zeroOrMoreSpaceParser
+      comparatorParser
+      (\_ x -> x)
+    )
+    (calcIntParser list)
+
+strongerThanApp list =
+  choice
+    [ lazy (\() -> termParenParser list)
+    , boolParser
+    , intParser
+    , lambdaVarParser list
+    ]
+
+lambdaAppParser : TypeContext -> Parser Term
+lambdaAppParser list =
+  foldl
+    ( concat
+      zeroOrMoreSpaceParser
+      (return LambdaApp)
+      (\_ x -> x)
+    )
+    (strongerThanApp list)
+  |> pLog "lambdaApp"
+
+-- STRONGER THAN APPLY
+
+termParenParser : TypeContext -> Parser Term
+termParenParser list =
+  intersperseConcat3 zeroOrMoreSpaceParser
+    parenOpenParser (termParser list) parenCloseParser
+    (\_ exp _ -> exp)
+
+boolParser : Parser Term
+boolParser =
+  or
+    (string "true" |> map (always TermTrue))
+    (string "false" |> map (always TermFalse))
+
+intParser : Parser Term
+intParser =
+  oneOrMore digitParser
+    |> map (String.concat >> String.toInt)
+    |> fmap (\ maybeInt ->
+      case maybeInt of
+        Just n -> return (TermInt n)
+        Nothing -> fail
+    )
+  |> pLog "int"
+
+lambdaVarParser : TypeContext -> Parser Term
+lambdaVarParser list =
+  variableParser
+    |> map (\var -> varSearch var list 0)
+    |> fmap
+      (\maybeTuple ->
+        case maybeTuple of
+          Just (n,ty) -> return (LambdaVar n ty)
+          _ -> fail
+      )
+    |> pLog "LambdaVar"
+
+
 
 typeAnnotationParser : Parser Type
 typeAnnotationParser =
@@ -291,21 +374,25 @@ typeParser =
   (\()->
     intersperseConcat zeroOrMoreSpaceParser
       (
-        unitOr
-          (\() ->
-            (intersperseConcat3 zeroOrMoreSpaceParser
-              parenOpenParser (lazy typeParser) parenCloseParser
-              (\_ ty _ -> ty)
+        choice
+          [ lazy
+            (\() ->
+              (intersperseConcat3 zeroOrMoreSpaceParser
+                parenOpenParser (lazy typeParser) parenCloseParser
+                (\_ ty _ -> ty)
+              )
             )
-          )
-          (string "bool" |> map (always TypeBool))
+          , (string "bool" |> map (always TypeBool))
+          , (string "int"  |> map (always TypeInt ))
+          ]
+
       )
       (zeroOrMore (lazy arrowAndTypeParser))
       (\ty tylist ->
         List.foldl (\a b ->a b) ty tylist
       )
+    |> pLog "typeParser"
   )
-
 
 arrowAndTypeParser : () -> Parser (Type -> Type)
 arrowAndTypeParser =
@@ -314,33 +401,6 @@ arrowAndTypeParser =
       (string "->") (lazy typeParser)
       (\_ ty -> (\arg -> TypeFunction arg ty))
   )
-
-lambdaAppParser : TypeContext -> Parser Term
-lambdaAppParser list =
-  concat
-    (exceptingApp list)
-    (oneOrMore
-      (concat
-        zeroOrMoreSpaceParser
-        (exceptingApp list)
-        (\_ varOrAbsList -> varOrAbsList)
-      )
-    )
-    (\hd tl ->
-      List.foldl (\a b -> LambdaApp b a) hd tl
-    )
-
-
-lambdaVarParser : TypeContext -> Parser Term
-lambdaVarParser list =
-  variableParser
-    |> map (\var -> varSearch var list 0)
-    |> fmap
-      (\maybeTuple ->
-        case maybeTuple of
-          Just (n,ty) -> return (LambdaVar n ty)
-          _ -> fail
-      )
 
 varSearch : Variable -> TypeContext -> Int -> Maybe ( Int, Type )
 varSearch var list cnt =
@@ -351,25 +411,9 @@ varSearch var list cnt =
       then (cnt, ty) |> Just
       else varSearch var tl (cnt+1)
 
-termIfParser :() -> TypeContext -> Parser Term
-termIfParser () list =
-  intersperseConcat4 oneOrMoreSpaceParser
-    (string "if") (lambdaParser list)
-    (string "then")
-    (intersperseConcat3 oneOrMoreSpaceParser
-      (lambdaParser list)
-      (string "else")
-      (lambdaParser list)
-      (\t1 _ t2 -> (t1,t2))
-    )
-    (\_ c _ (t1,t2) -> TermIf c t1 t2)
-
-type alias NamingContext = List Variable
-type alias TypeContext = List ( Variable, Type )
-
-lambdaExpToString : Term -> NamingContext -> String
-lambdaExpToString lambdaExp list =
-  case lambdaExp of
+termToString : Term -> NamingContext -> String
+termToString term list =
+  case term of
     LambdaVar n _ ->
       if n == -1
       then "Something is wrong"
@@ -378,18 +422,38 @@ lambdaExpToString lambdaExp list =
       let
         newVar = getNewVar var list
       in
-        "(\\ "++newVar++" ->"++(lambdaExpToString exp (newVar::list) )++")"
+        "(\\ "++newVar++" ->"++(termToString exp (newVar::list) )++")"
     LambdaApp left right ->
-      "("++(lambdaExpToString left list)++" "++(lambdaExpToString right list)++")"
+      "("++(termToString left list)++" "++(termToString right list)++")"
     TermTrue -> "True"
     TermFalse-> "False"
+    TermInt i -> String.fromInt i
+    Calc op t1 t2 ->
+      let
+        t1Str = termToString t1 list
+        t2Str = termToString t2 list
+      in
+        case op of
+          Add -> "(Add "++t1Str++", "++t2Str++")"
+          Sub -> "(Sub "++t1Str++", "++t2Str++")"
+          Mul -> "(Mul "++t1Str++", "++t2Str++")"
+          Pow -> "(Pow "++t1Str++", "++t2Str++")"
+    Compare op t1 t2 ->
+      let
+        t1Str = termToString t1 list
+        t2Str = termToString t2 list
+      in
+        case op of
+          GreaterThan -> "("++t1Str++">"++t2Str++")"
+          LessThan    -> "("++t1Str++"<"++t2Str++")"
+          Equal       -> "("++t1Str++"="++t2Str++")"
     TermIf cond t1 t2 ->
       "If "++
-      (lambdaExpToString cond list)++
+      (termToString cond list)++
       " Then "++
-      (lambdaExpToString t1 list)++
+      (termToString t1 list)++
       " Else "++
-      (lambdaExpToString t2 list)
+      (termToString t2 list)
 
 getNewVar : Variable -> NamingContext -> Variable
 getNewVar var list =
@@ -413,11 +477,6 @@ getName n list =
       Just str -> str
       _ -> "Parse Error"
 
-{-
-expParser : Parser Exp
-expParser = expressionParser
-
--}
 zeroOrMoreSpaceParser =
   zeroOrMore (charMatch ' ')
     |> map (always ())
@@ -426,32 +485,12 @@ oneOrMoreSpaceParser =
   concat
     (charMatch ' ') zeroOrMoreSpaceParser
     (\_ _ -> ())
-{-
-ifParser =
-  intersperseConcat oneOrMoreSpaceParser
-    (
-      intersperseConcat3 oneOrMoreSpaceParser
-        (string "if") conditionParser (string "then")
-        (\_ cond _ -> cond)
-    )
-    (
-      intersperseConcat3 oneOrMoreSpaceParser
-        expressionParser (string "else") expressionParser
-        (\t _ f -> ( t, f ))
-    )
-    (\cond ( t, f ) -> If cond t f)
 
-conditionParser : Parser Exp
-conditionParser =
-  intersperseConcat3 zeroOrMoreSpaceParser
-    expressionParser comparatorParser expressionParser
-    (\left compare right -> compare left right)
-
-comparatorParser : Parser (Exp -> Exp -> Exp)
+comparatorParser : Parser (Term->Term->Term)
 comparatorParser =
   choice [gtParser,ltParser,eqParser]
 
-
+{-
 varDecl =
   intersperseConcat3 zeroOrMoreSpaceParser
     variableParser (charMatch '=') expressionParser
@@ -482,120 +521,64 @@ variableParser =
           "int" -> fail
           _     -> return str
       )
-{-
-parenParser : Parser Exp
-parenParser =
-  intersperseConcat3 zeroOrMoreSpaceParser
-    parenOpenParser expressionParser parenCloseParser
-    (\_ exp _ -> Paren exp)
 
-loopables () =
-  choice [parenParser,letParser,ifParser]
-
-numOrLoopables =
-  unitChoice loopables [numParser,(variableParser |> map Var)]
-
-hatNumParser =
-  intersperseConcat zeroOrMoreSpaceParser
-    hatParser numOrLoopables
-    (\hat exp ->(\left -> hat left exp) )
-
-hatNumListParser =
-  zeroOrMore
+powParser list =
+  foldl
     ( concat
       zeroOrMoreSpaceParser
-      hatNumParser
-      (\_ exp->exp)
+      hatParser
+      (\_ h -> h)
     )
+    (lambdaAppParser list)
+  |> pLog "powParser"
 
-powParser =
-  concat
-    numOrLoopables hatNumListParser
-    (\left expList ->
-      expList
-        |> List.foldl (\exp result -> exp result) left
-    )
-
-starNumParser =
-  intersperseConcat zeroOrMoreSpaceParser
-    starParser powParser
-    (\star exp ->(\left -> star left exp) )
-
-starNumListParser =
-  zeroOrMore
+mulParser list =
+  foldl
     ( concat
       zeroOrMoreSpaceParser
-      starNumParser
-      (\_ exp->exp)
+      starParser
+      (\_ s -> s)
     )
-
-mulParser =
-  concat
-    powParser starNumListParser
-    (\left expList ->
-      expList
-        |> List.foldl (\exp result -> exp result) left
-    )
+    (powParser list)
+  |> pLog "mulParser"
 
 plusMinusParser =
   or plusParser minusParser
-addNumParser =
-  intersperseConcat zeroOrMoreSpaceParser
-    plusMinusParser mulParser
-    (\addOrSub exp ->(\left -> addOrSub left exp) )
 
-addNumListParser =
-  zeroOrMore
+calcIntParser list =
+  foldl
     ( concat
       zeroOrMoreSpaceParser
-      addNumParser
-      (\_ exp->exp)
+      plusMinusParser
+      (\_ x -> x)
     )
-
-expressionParser =
-  concat
-    mulParser addNumListParser
-  (\left expList ->
-    expList
-      |> List.foldl (\exp result -> exp result) left
-  )
-
-numParser : Parser Exp
-numParser =
-  oneOrMore digitParser
-    |> map (String.concat >> String.toInt)
-    |> fmap (\ maybeInt ->
-      case maybeInt of
-        Just n -> return (Number n)
-        Nothing -> fail
-    )
+    (mulParser list)
 
 digitParser : Parser String
 digitParser =
   char Char.isDigit
     |> map String.fromChar
 
-plusParser : Parser (Exp -> Exp -> Exp)
+plusParser : Parser (Term->Term->Term)
 plusParser =
   charMatch '+'
-    |> map (always Add)
+    |> map (always <| Calc Add)
 
-minusParser : Parser (Exp -> Exp -> Exp)
+minusParser : Parser (Term->Term->Term)
 minusParser =
   charMatch '-'
-    |> map (always Sub)
+    |> map (always <| Calc Sub)
 
-starParser : Parser (Exp -> Exp -> Exp)
+starParser : Parser (Term->Term->Term)
 starParser =
   charMatch '*'
-    |> map (always Mul)
+    |> map (always <| Calc Mul)
 
-hatParser : Parser (Exp -> Exp -> Exp)
+hatParser : Parser (Term->Term->Term)
 hatParser =
   charMatch '^'
-    |> map (always Pow)
+    |> map (always <| Calc Pow)
 
--}
 
 parenOpenParser : Parser ()
 parenOpenParser =
@@ -609,23 +592,20 @@ commaParser : Parser ()
 commaParser =
   charMatch ','
 
-{-
-gtParser : Parser (Exp -> Exp -> Exp)
+gtParser : Parser (Term->Term->Term)
 gtParser =
   charMatch '>'
-    |> map (always GreaterThan)
+    |> map (always <| Compare GreaterThan)
 
-ltParser : Parser (Exp -> Exp -> Exp)
+ltParser : Parser (Term->Term->Term)
 ltParser =
   charMatch '<'
-    |> map (always LessThan)
+    |> map (always <| Compare LessThan)
 
-eqParser : Parser (Exp -> Exp -> Exp)
+eqParser : Parser (Term->Term->Term)
 eqParser =
   charMatch '='
-    |> map (always Equal)
-
--}
+    |> map (always <| Compare Equal)
 
 bsParser =
   charMatch '\\'
@@ -634,7 +614,7 @@ bsParser =
 view : Model -> Html Msg
 view model =
   let
-    lambdaStr = lambdaExpToString model.result []
+    lambdaStr = termToString model.result []
   in
     div []
       [ input
@@ -644,11 +624,11 @@ view model =
       , button [ onClick Pressed ][ text "Parse it !" ]
       , br[][]
       --, text <| resultToString model.strForCalc
-      , text <| lambdaExpToString model.strForCalc []
+      , text <| termToString model.strForCalc []
       , br[][]
       , text <|
         case model.types of
-          Ok _ -> lambdaExpToString model.result []
+          Ok _ -> termToString model.result []
           Err _ -> "Type Mismatch"
 
       --, text <| resultToEvaluatedString model
@@ -660,50 +640,6 @@ view model =
           _ -> typeToString model.types
       ]
 
-{-
-resultToEvaluatedString : Model -> String
-resultToEvaluatedString model =
-  case model.strForCalc of
-    Success exp tl ->
-      exp
-        |> evaluate Dict.empty
-        |> String.fromInt
-    _ -> "Error"
-
-resultToString : Res Exp -> String
-resultToString result =
-  case result of
-    Success exp tl -> expToString exp
-    Failed -> "Error"
-
-expToString : Exp -> String
-expToString exp =
-  case exp of
-    Number n -> String.fromInt n
-    Add left right ->
-      "Add( " ++ (expToString left) ++ ", " ++ (expToString right) ++ " )"
-    Sub left right ->
-      "Sub( " ++ (expToString left) ++ ", " ++ (expToString right) ++ " )"
-    Mul left right ->
-      "Mul( " ++ (expToString left) ++ ", " ++ (expToString right) ++ " )"
-    Pow left right ->
-      "Pow( " ++ (expToString left) ++ ", " ++ (expToString right) ++ " )"
-    Paren expression ->
-      "( " ++ expToString expression ++ " )"
-    Let var e1 e2 ->
-      "Let( " ++ var ++ " = " ++ expToString e1 ++ " In " ++ expToString e2 ++ " )"
-    Var var ->
-      "Var("++var++")"
-    If cond t f ->
-      "If "++expToString cond++" Then "++expToString t++" Else "++expToString f
-    GreaterThan left right ->
-      expToString left++" > "++expToString right
-    LessThan left right ->
-      expToString left++" < "++expToString right
-    Equal left right ->
-      expToString left++" = "++expToString right
-
--}
 
 main : Program () Model Msg
 main =

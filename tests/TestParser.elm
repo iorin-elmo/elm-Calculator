@@ -2,6 +2,7 @@ module TestParser exposing (..)
 
 import Expect exposing (Expectation)
 import Fuzz exposing (Fuzzer, int, list, string)
+import Dict exposing (Dict)
 import Test exposing (..)
 import Main exposing (..)
 import IorinParser exposing (..)
@@ -100,7 +101,7 @@ suite =
               |> get
               |> (\res ->
                   case res of
-                    Success hd "" -> evaluate hd
+                    Success hd "" -> evaluate Dict.empty hd
                     _ -> LambdaVar -1 TypeBool
                 ))
             |> Expect.equal TermTrue

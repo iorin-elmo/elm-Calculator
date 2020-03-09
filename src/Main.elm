@@ -33,6 +33,7 @@ initialModel =
 --        | <int>
 --        | <term> <binaryOp> <term>
 --        | <term> <compOp> <term>
+--        | let <var> = <term> in <term>
 
 --<type>::= <bool>
 --        | <int>
@@ -52,6 +53,8 @@ type Term
   | TermInt Int
   | Calc BinaryOp Term Term
   | Compare CompOp Term Term
+  | Let Variable Term Term
+  | LetVar Variable
 
 type CompOp
   = GreaterThan
@@ -72,6 +75,11 @@ type Type
 type alias Variable = String
 type alias NamingContext = List Variable
 type alias TypeContext = List ( Variable, Type )
+type alias LetVarDict = Dict Variable Term
+
+type WhichVar
+  = LambdaVar_ Int Type
+  | LetVar_ Variable
 
 type Msg
   = Input String
@@ -97,16 +105,16 @@ update msg model =
       in
         { model |
           strForCalc = parseRes
-        , result = parseRes |> evaluate
-        , types = parseRes |> typeOf []
+        , result = parseRes |> evaluate Dict.empty
+        , types = parseRes |> typeOf Dict.empty []
           --|> expParser
         }
 
-evaluate : Term -> Term
-evaluate exp =
+evaluate : LetVarDict -> Term -> Term
+evaluate dict exp =
   if isValue exp
   then exp
-  else evaluate (reduction exp)
+  else evaluate dict (reduction dict exp |> log "reduction")
 
 isValue : Term -> Bool
 isValue exp =
@@ -124,8 +132,8 @@ termToInt t =
     TermInt n -> n
     _ -> 0
 
-reduction : Term -> Term
-reduction exp =
+reduction : LetVarDict -> Term -> Term
+reduction dict exp =
   case exp of
     LambdaApp left right ->
       case left of
@@ -135,16 +143,21 @@ reduction exp =
             debug = log "exp" (termToString test)
           in
             test
-        LambdaApp _ _ -> LambdaApp (reduction left) right
+        LambdaApp _ _ -> LambdaApp (reduction dict left) right
+        LetVar v ->
+          let
+            newL = evaluate dict (Maybe.withDefault (LambdaVar -1 TypeBool) (Dict.get v dict))
+          in
+            evaluate dict (LambdaApp newL right)
         _ -> exp
     TermIf cond t1 t2 ->
-      if (evaluate cond == TermTrue)
+      if (evaluate dict cond == TermTrue)
       then t1
       else t2
     Calc op t1 t2 ->
       let
-        i1 = t1 |> evaluate |> termToInt
-        i2 = t2 |> evaluate |> termToInt
+        i1 = t1 |> evaluate dict |> termToInt
+        i2 = t2 |> evaluate dict |> termToInt
       in
         case op of
           Add -> TermInt (i1+i2)
@@ -153,8 +166,8 @@ reduction exp =
           Pow -> TermInt (i1^i2)
     Compare op t1 t2 ->
       let
-        i1 = t1 |> evaluate |> termToInt
-        i2 = t2 |> evaluate |> termToInt
+        i1 = t1 |> evaluate dict |> termToInt
+        i2 = t2 |> evaluate dict |> termToInt
         boolToTerm bool =
           if bool
           then TermTrue
@@ -164,11 +177,40 @@ reduction exp =
           GreaterThan -> boolToTerm (i1 > i2)
           LessThan    -> boolToTerm (i1 < i2)
           Equal       -> boolToTerm (i1 ==i2)
+    LetVar var -> evaluate dict (Maybe.withDefault (LambdaVar -1 TypeBool) (Dict.get var dict))
+    Let var t1 t2 ->
+      evaluate
+      ( Dict.insert
+        var
+        (evaluate dict t1)
+        dict
+      )
+      t2
+      {-
+      let
+        varReplace : Variable -> Term -> Term -> Term
+        varReplace v to target =
+          let
+            getRep x = varReplace v to x
+          in
+            case target of
+              LambdaApp l r -> LambdaApp (getRep l) (getRep r)
+              LambdaAbs vr ty t -> LambdaAbs vr ty (getRep t)
+              Let vin t1_ t2_ -> varReplace v (varReplace v to t1_) (varReplace vin to t2_)
+              LetVar vr t -> if vr==v then t else LetVar vr t
+              TermIf c t1_ t2_ -> TermIf (getRep c) (getRep t1_) (getRep t2_)
+              Calc op t1_ t2_ -> Calc op (getRep t1_) (getRep t2_)
+              Compare op t1_ t2_ -> Compare op (getRep t1_) (getRep t2_)
+              _ -> target
+      in
+        varReplace var t1 t2
+        -}
     _ -> exp |> log "exp"
 
+
 --    (\t-> t^2) (x+2)
--- == replace 0 (x+2) x^2
--- == (t+2)^2
+-- == replace 0 (x+2) t^2
+-- == (x+2)^2
 replace : Int -> Term -> Term -> Term
 replace from to target =
   case target of
@@ -188,34 +230,38 @@ replace from to target =
       Compare op (replace from to t1) (replace from to t2)
     _ -> target
 
-typeOf : TypeContext -> Term -> Result String Type
-typeOf list term =
+typeOf : LetVarDict -> TypeContext -> Term -> Result String Type
+typeOf dict list term =
   case term of
     TermTrue -> Ok TypeBool
     TermFalse -> Ok TypeBool
     TermInt _ -> Ok TypeInt
+    LetVar v ->
+      Maybe.withDefault (Err "Undifined Variable")
+        <| Maybe.map (typeOf dict list) (Dict.get v dict)
+    Let v t1 t2 -> typeOf (Dict.insert v t1 dict) list t2
     Calc _ t1 t2 ->
       let
-        typet1 = typeOf list t1
-        typet2 = typeOf list t2
+        typet1 = typeOf dict list t1
+        typet2 = typeOf dict list t2
       in
         if (typet1 == Ok TypeInt)&&(typet2 == Ok TypeInt)
         then Ok TypeInt
         else Err "Calc Argument is wrong"
     Compare _ t1 t2 ->
       let
-        typet1 = typeOf list t1
-        typet2 = typeOf list t2
+        typet1 = typeOf dict list t1
+        typet2 = typeOf dict list t2
       in
         if (typet1 == Ok TypeInt)&&(typet2 == Ok TypeInt)
         then Ok TypeBool
         else Err "Compare Argument is wrong"
     TermIf cond t1 t2 ->
       let
-        typet1 = typeOf list t1
-        typet2 = typeOf list t2
+        typet1 = typeOf dict list t1
+        typet2 = typeOf dict list t2
       in
-        if ((typeOf list cond) == (Ok TypeBool))
+        if ((typeOf dict list cond) == (Ok TypeBool))
         then
           case (typet1,typet2) of
             (Ok ty1,Ok ty2) ->
@@ -227,11 +273,11 @@ typeOf list term =
           Err "If Condition is wrong"
     LambdaVar _ ty -> Ok ty
     LambdaAbs _ ty t ->
-      Result.map (TypeFunction ty) (typeOf list t)
+      Result.map (TypeFunction ty) (typeOf dict list t)
     LambdaApp t1 t2 ->
-      case typeOf list t1 of
+      case typeOf dict list t1 of
         Ok (TypeFunction arg ret) ->
-          if Ok arg == typeOf list t2
+          if Ok arg == typeOf dict list t2
           then Ok ret
           else Err "Argument of LambdaApply is wrong(2)"
         _ -> Err "Argument of LambdaApply is wrong(1)"
@@ -251,6 +297,7 @@ termParser : TypeContext -> Parser Term
 termParser list =
   choice
     [ lambdaAbsParser list
+    , letParser list
     , termIfParser list
     , calcCompParser list
     , lambdaAppParser list
@@ -258,6 +305,18 @@ termParser list =
     ]
 
 -- TERM PARSER
+letParser : TypeContext -> Parser Term
+letParser list =
+  let
+    varDecl =
+      intersperseConcat3 zeroOrMoreSpaceParser
+      variableParser (charMatch '=') (lazy (\()->termParser list))
+      (\var _ t -> (var,t) )
+  in
+    intersperseConcat4 oneOrMoreSpaceParser
+    (string "let") varDecl (string "in") (lazy (\()->termParser list))
+    (\_ (var,t1) _ t2 -> Let var t1 t2)
+
 
 lambdaAbsParser : TypeContext -> Parser Term
 lambdaAbsParser list =
@@ -310,7 +369,7 @@ strongerThanApp list =
     [ lazy (\() -> termParenParser list)
     , boolParser
     , intParser
-    , lambdaVarParser list
+    , varParser list
     ]
 
 lambdaAppParser : TypeContext -> Parser Term
@@ -349,19 +408,17 @@ intParser =
     )
   |> pLog "int"
 
-lambdaVarParser : TypeContext -> Parser Term
-lambdaVarParser list =
+varParser : TypeContext -> Parser Term
+varParser list =
   variableParser
     |> map (\var -> varSearch var list 0)
     |> fmap
-      (\maybeTuple ->
-        case maybeTuple of
-          Just (n,ty) -> return (LambdaVar n ty)
-          _ -> fail
+      (\whichVar ->
+        case whichVar of
+          LambdaVar_ n ty -> return (LambdaVar n ty)
+          LetVar_ s -> return (LetVar s)
       )
     |> pLog "LambdaVar"
-
-
 
 typeAnnotationParser : Parser Type
 typeAnnotationParser =
@@ -402,18 +459,22 @@ arrowAndTypeParser =
       (\_ ty -> (\arg -> TypeFunction arg ty))
   )
 
-varSearch : Variable -> TypeContext -> Int -> Maybe ( Int, Type )
+varSearch : Variable -> TypeContext -> Int -> WhichVar
 varSearch var list cnt =
   case list of
-    [] -> Nothing
+    [] -> LetVar_ var
     (hd,ty) :: tl ->
       if hd == var
-      then (cnt, ty) |> Just
+      then LambdaVar_ cnt ty
       else varSearch var tl (cnt+1)
 
 termToString : Term -> NamingContext -> String
 termToString term list =
   case term of
+    LetVar v ->
+      "LetVar("++v++")"
+    Let v t1 t2 ->
+      "Let "++v++" = "++(termToString t1 list)++" in "++(termToString t2 list)
     LambdaVar n _ ->
       if n == -1
       then "Something is wrong"
@@ -490,17 +551,7 @@ comparatorParser : Parser (Term->Term->Term)
 comparatorParser =
   choice [gtParser,ltParser,eqParser]
 
-{-
-varDecl =
-  intersperseConcat3 zeroOrMoreSpaceParser
-    variableParser (charMatch '=') expressionParser
-    (\var _ exp -> ( var, exp ))
 
-letParser =
-  intersperseConcat4 oneOrMoreSpaceParser
-    (string "let") varDecl (string "in") expressionParser
-    (\_ ( var, e1 ) _ e2 -> Let var e1 e2)
--}
 variableParser : Parser String
 variableParser =
   concat

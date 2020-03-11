@@ -114,7 +114,7 @@ evaluate : LetVarDict -> Term -> Term
 evaluate dict exp =
   if isValue exp
   then exp
-  else evaluate dict (reduction dict exp |> log "reduction")
+  else evaluate dict (reduction dict (exp |> log "reduction"))
 
 isValue : Term -> Bool
 isValue exp =
@@ -218,6 +218,8 @@ replace from to target =
       if n == from
       then to
       else LambdaVar n t
+    Let var t1 t2 ->
+      Let var (replace from to t1) (replace from to t2)
     LambdaApp left right ->
       LambdaApp (replace from to left) (replace from to right)
     LambdaAbs var ty e ->
@@ -563,14 +565,14 @@ variableParser =
     |> fmap
       (\str ->
         case str of
-          "let" -> fail
-          "in"  -> fail
-          "if"  -> fail
-          "then"-> fail
-          "else"-> fail
-          "bool"-> fail
-          "int" -> fail
-          _     -> return str
+          "let"  -> fail
+          "in"   -> fail
+          "if"   -> fail
+          "then" -> fail
+          "else" -> fail
+          "bool" -> fail
+          "int"  -> fail
+          _      -> return str
       )
 
 powParser list =

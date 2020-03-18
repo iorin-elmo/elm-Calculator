@@ -65,6 +65,8 @@ type BinaryOp
   = Add
   | Sub
   | Mul
+  | Div
+  | Mod
   | Pow
 
 type Type
@@ -162,6 +164,8 @@ reduction dict exp =
           Add -> TermInt (i1+i2)
           Sub -> TermInt (i1-i2)
           Mul -> TermInt (i1*i2)
+          Div -> TermInt (i1//i2)
+          Mod -> TermInt (modBy i2 i1)
           Pow -> TermInt (i1^i2)
     Compare op t1 t2 ->
       let
@@ -185,6 +189,7 @@ reduction dict exp =
         dict
       )
       t2
+
     _ -> exp |> log "exp"
 
 
@@ -480,6 +485,8 @@ termToString term list =
           Add -> "(Add "++t1Str++", "++t2Str++")"
           Sub -> "(Sub "++t1Str++", "++t2Str++")"
           Mul -> "(Mul "++t1Str++", "++t2Str++")"
+          Div -> "(Div "++t1Str++", "++t2Str++")"
+          Mod -> "( "++t1Str++"(Mod "++t2Str++"))"
           Pow -> "(Pow "++t1Str++", "++t2Str++")"
     Compare op t1 t2 ->
       let
@@ -565,11 +572,11 @@ powParser list =
     (lambdaAppParser list)
   |> pLog "powParser"
 
-mulParser list =
+mulDivModParser list =
   foldl
     ( concat
       zeroOrMoreSpaceParser
-      starParser
+      starSlashPercent
       (\_ s -> s)
     )
     (powParser list)
@@ -578,6 +585,10 @@ mulParser list =
 plusMinusParser =
   or plusParser minusParser
 
+starSlashPercent =
+  choice
+    [starParser,slachParser,percentParser]
+
 calcIntParser list =
   foldl
     ( concat
@@ -585,7 +596,7 @@ calcIntParser list =
       plusMinusParser
       (\_ x -> x)
     )
-    (mulParser list)
+    (mulDivModParser list)
 
 digitParser : Parser String
 digitParser =
@@ -606,6 +617,16 @@ starParser : Parser (Term->Term->Term)
 starParser =
   charMatch '*'
     |> map (always <| Calc Mul)
+
+slachParser : Parser (Term->Term->Term)
+slachParser =
+  charMatch '/'
+    |> map (always <| Calc Div)
+
+percentParser : Parser (Term->Term->Term)
+percentParser =
+  charMatch '%'
+    |> map (always <| Calc Mod)
 
 hatParser : Parser (Term->Term->Term)
 hatParser =

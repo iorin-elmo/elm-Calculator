@@ -104,11 +104,16 @@ update msg model =
                   Success hd tl -> hd
                   _ -> LambdaVar -1 TypeBool
               )
+        types = typeOf Dict.empty [] parseRes
+        result =
+          case types of
+            Ok _ -> evaluate Dict.empty parseRes
+            _ -> LambdaVar -1 TypeBool
       in
         { model |
           strForCalc = parseRes
-        , result = parseRes |> evaluate Dict.empty
-        , types = parseRes |> typeOf Dict.empty []
+        , result = result
+        , types = types
         }
 
 evaluate : LetVarDict -> Term -> Term

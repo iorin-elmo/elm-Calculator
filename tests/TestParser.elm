@@ -140,6 +140,17 @@ suite =
                 |> get
               )
             |> Expect.equal Failed
+        , test "app-fail"
+            <| \_ ->
+              ("2 3"
+                |> get
+                |> (\res ->
+                    case res of
+                      Success hd "" -> typeOf Dict.empty [] hd
+                      _ -> Err "?"
+                  )
+              )
+            |> Expect.equal (Err "Argument of LambdaApply is wrong(1)")
         ]
       , describe "let"
         [

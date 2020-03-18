@@ -107,7 +107,6 @@ update msg model =
           strForCalc = parseRes
         , result = parseRes |> evaluate Dict.empty
         , types = parseRes |> typeOf Dict.empty []
-          --|> expParser
         }
 
 evaluate : LetVarDict -> Term -> Term
@@ -186,25 +185,6 @@ reduction dict exp =
         dict
       )
       t2
-      {-
-      let
-        varReplace : Variable -> Term -> Term -> Term
-        varReplace v to target =
-          let
-            getRep x = varReplace v to x
-          in
-            case target of
-              LambdaApp l r -> LambdaApp (getRep l) (getRep r)
-              LambdaAbs vr ty t -> LambdaAbs vr ty (getRep t)
-              Let vin t1_ t2_ -> varReplace v (varReplace v to t1_) (varReplace vin to t2_)
-              LetVar vr t -> if vr==v then t else LetVar vr t
-              TermIf c t1_ t2_ -> TermIf (getRep c) (getRep t1_) (getRep t2_)
-              Calc op t1_ t2_ -> Calc op (getRep t1_) (getRep t2_)
-              Compare op t1_ t2_ -> Compare op (getRep t1_) (getRep t2_)
-              _ -> target
-      in
-        varReplace var t1 t2
-        -}
     _ -> exp |> log "exp"
 
 

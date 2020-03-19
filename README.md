@@ -6,31 +6,6 @@ visit ```https://iorin-elmo.github.io/elm-Calculator/```
 elm make src/Main.elm --output=elm.js
 ```
 ## Grammar  
-#### Definition
-A/a := Capital and Small letter allowed
-a/N := alphabet(small letter) and number allowed
-
-<var> := A/a (++ a/N ++ a/N ++ ... )
-
-<term>::= <var>
-        | \ <var> : <type> -> <term>
-        | <term> <term>
-        | true
-        | false
-        | if <term> then <term> else <term>
-        | <int>
-        | <term> <binaryOp> <term>
-        | <term> <compOp> <term>
-        | let <var> = <term> in <term>
-
-<type>::= <bool>
-        | <int>
-        | <type> -> <type>
-
-<binaryOp>::= + | - | * | ^
-<compOp>  ::= > | < | =
-
-
 ### Boolean Operation
 greater than  
 ```2 > 4 gets false```  

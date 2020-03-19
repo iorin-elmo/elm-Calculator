@@ -9,7 +9,7 @@ elm make src/Main.elm --output=elm.js
 ### Boolean Operation
 greater than  
 ```2 > 4 gets false```  
-less than
+less than  
 ```2 < 4 gets true ```  
 equal  
 ```2 = 4 gets false```  

@@ -10,9 +10,9 @@ elm make src/Main.elm --output=elm.js
 greater than  
 ```2 > 4 gets false```  
 less than
-```2 < 4 gets true ```
-equal
-```2 = 4 gets false```
+```2 < 4 gets true ```  
+equal  
+```2 = 4 gets false```  
 ### Integer Operation  
 addition  
 ```2 + 4 gets 6```  

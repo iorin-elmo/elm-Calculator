@@ -10,25 +10,25 @@ elm make src/Main.elm --output=elm.js
 A/a := Capital and Small letter allowed
 a/N := alphabet(small letter) and number allowed
 
---<var> := A/a (++ a/N ++ a/N ++ ... )
+<var> := A/a (++ a/N ++ a/N ++ ... )
 
---<term>::= <var>
---        | \ <var> : <type> -> <term>
---        | <term> <term>
---        | true
---        | false
---        | if <term> then <term> else <term>
---        | <int>
---        | <term> <binaryOp> <term>
---        | <term> <compOp> <term>
---        | let <var> = <term> in <term>
+<term>::= <var>
+        | \ <var> : <type> -> <term>
+        | <term> <term>
+        | true
+        | false
+        | if <term> then <term> else <term>
+        | <int>
+        | <term> <binaryOp> <term>
+        | <term> <compOp> <term>
+        | let <var> = <term> in <term>
 
---<type>::= <bool>
---        | <int>
---        | <type> -> <type>
+<type>::= <bool>
+        | <int>
+        | <type> -> <type>
 
---<binaryOp>::= + | - | * | ^
---<compOp>  ::= > | < | =
+<binaryOp>::= + | - | * | ^
+<compOp>  ::= > | < | =
 
 
 ### Boolean Operation

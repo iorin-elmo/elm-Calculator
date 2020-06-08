@@ -6863,3 +6863,4 @@ var $author$project$Main$main = $elm$browser$Browser$sandbox(
 	{init: $author$project$Main$initialModel, update: $author$project$Main$update, view: $author$project$Main$view});
 _Platform_export({'Main':{'init':$author$project$Main$main(
 	$elm$json$Json$Decode$succeed(_Utils_Tuple0))(0)}});}(this));
+

@@ -20,6 +20,8 @@ substraction
 ```2 - 4 gets -2```  
 multiplication  
 ```2 * 4 gets 8```  
+power
+```2 ^ 4 gets 16```
 division  
 ```2 / 4 gets 0```  
 mod  

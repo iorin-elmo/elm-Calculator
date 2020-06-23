@@ -1,6 +1,8 @@
 # elm-Calculator
 calculator with parser on Elm  
-visit ```https://iorin-elmo.github.io/elm-Calculator/```  
+visit [here](https://iorin-elmo.github.io/elm-Calculator/)   
+## Version  
+elm 0.19.1  
 ## Command
 ``` sh
 elm make src/Main.elm --output=elm.js

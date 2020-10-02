@@ -6146,6 +6146,11 @@ var $author$project$Main$starParser = A2(
 var $author$project$Main$starSlashPercent = $author$project$IorinParser$choice(
 	_List_fromArray(
 		[$author$project$Main$starParser, $author$project$Main$slachParser, $author$project$Main$percentParser]));
+var $author$project$Main$TypeFunction = F2(
+	function (a, b) {
+		return {$: 'TypeFunction', a: a, b: b};
+	});
+var $author$project$Main$TypeInt = {$: 'TypeInt'};
 var $author$project$IorinParser$intersperseConcat = F4(
 	function (i, p1, p2, f) {
 		return A4(
@@ -6158,11 +6163,6 @@ var $author$project$IorinParser$intersperseConcat = F4(
 					return A2(f, a, b);
 				}));
 	});
-var $author$project$Main$TypeFunction = F2(
-	function (a, b) {
-		return {$: 'TypeFunction', a: a, b: b};
-	});
-var $author$project$Main$TypeInt = {$: 'TypeInt'};
 function $author$project$Main$cyclic$arrowAndTypeParser() {
 	return function (_v4) {
 		return A4(
@@ -6240,16 +6240,6 @@ try {
 	};
 } catch ($) {
 	throw 'Some top-level definitions from `Main` are causing infinite recursion:\n\n  ┌─────┐\n  │    arrowAndTypeParser\n  │     ↓\n  │    typeParser\n  └─────┘\n\nThese errors are very tricky, so read https://elm-lang.org/0.19.1/bad-recursion to learn how to fix it!';}
-var $author$project$Main$typeAnnotationParser = A4(
-	$author$project$IorinParser$intersperseConcat,
-	$author$project$Main$zeroOrMoreSpaceParser,
-	$author$project$IorinParser$charMatch(
-		_Utils_chr(':')),
-	$author$project$Main$typeParser(_Utils_Tuple0),
-	F2(
-		function (_v0, ty) {
-			return ty;
-		}));
 var $author$project$Main$LetVar = function (a) {
 	return {$: 'LetVar', a: a};
 };
@@ -6402,11 +6392,11 @@ var $author$project$Main$lambdaAbsParser = function (list) {
 					$author$project$IorinParser$intersperseConcat4,
 					$author$project$Main$zeroOrMoreSpaceParser,
 					$author$project$Main$bsParser,
+					$author$project$Main$typeParser(_Utils_Tuple0),
 					$author$project$Main$variableParser,
-					$author$project$Main$typeAnnotationParser,
-					$author$project$IorinParser$string('->'),
+					$author$project$IorinParser$string(':'),
 					F4(
-						function (_v16, _var, ty, _v17) {
+						function (_v16, ty, _var, _v17) {
 							return A2(
 								$elm$core$List$cons,
 								_Utils_Tuple2(_var, ty),

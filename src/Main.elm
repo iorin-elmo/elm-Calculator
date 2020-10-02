@@ -315,8 +315,8 @@ lambdaAbsParser list =
   concat
     (
       intersperseConcat4 zeroOrMoreSpaceParser
-        bsParser variableParser typeAnnotationParser (string "->")
-        (\_ var ty _ -> ( var, ty ):: list )
+        bsParser (typeParser ()) variableParser (string ":")
+        (\_ ty var _ -> ( var, ty ):: list )
     )
     zeroOrMoreSpaceParser
     (\varList _ -> varList)

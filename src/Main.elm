@@ -574,7 +574,7 @@ powParser list =
       hatParser
       (\_ h -> h)
     )
-    (lambdaAppParser list)
+    (strongerThanAppParser list)
   |> pLog "powParser"
 
 mulDivModParser list =

@@ -31,24 +31,24 @@ mod
 ### Lambda Expression  
 abstruction  
 usage :  
-\ <***var***> : <***type***> -> <***term***>  
+\ <***type***> <***var***>  : <***term***>  
 ```  
-\n:int -> n*2  
-\m:bool -> m  
+\int n : n*2  
+\int -> int x : x  
 ```  
 apply  
 usage : <***term***> <***term***>  
 ```  
-(\n:int -> n*2) 3                       gets 6  
-(\m:bool->bool -> m)(\n:bool -> n)true  gets true  
+(\int n : n*2) 3                       gets 6  
+(\bool->bool m : m)(\bool n : n) true  gets true  
 ```
 ### Other Grammar  
 let  
 usage :  
 let <***var***> = <***term***> in <***term***>
 ```
-let not=\n:bool -> if n then false else true in not true   gets false
-let x=1 in let x=x+1 in x                                  gets 2
+let not=\bool n : if n then false else true in not true   gets false
+let x=1 in let x=x+1 in x                                 gets 2
 ```
 if  
 usage :  

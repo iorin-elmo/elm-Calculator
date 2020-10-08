@@ -6486,7 +6486,7 @@ var $author$project$Main$powParser = function (list) {
 					function (_v7, h) {
 						return h;
 					})),
-			$author$project$Main$lambdaAppParser(list)));
+			$author$project$Main$strongerThanApp(list)));
 };
 var $author$project$Main$strongerThanApp = function (list) {
 	return $author$project$IorinParser$choice(

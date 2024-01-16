@@ -245,6 +245,8 @@ foldr pi pa =
   )
   |> pLog "foldr"
 
+  -- log
+
 pLog : String -> Parser a -> Parser a
 pLog s pa =
   \str -> pa str |> log s

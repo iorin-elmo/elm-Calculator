@@ -291,8 +291,8 @@ termParser list =
     [ lambdaAbsParser list
     , letParser list
     , termIfParser list
-    , calcCompParser list
     , lambdaAppParser list
+    , calcCompParser list
     , strongerThanApp list
     ]
 
